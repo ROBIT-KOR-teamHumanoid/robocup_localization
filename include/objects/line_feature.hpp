@@ -50,6 +50,10 @@ public:
 
         // 특징점 타입 (0=L/ㄱ, 1=T, 2=X)
         int FEATURE_TYPE;
+
+        // 이미지 내 특징점→공 방향 각도 (rad), 픽셀 거리
+        double BALL_RELATIVE_ANGLE;
+        double BALL_FEATURE_DISTANCE;
     };
 
     void featureCalc(QNode *qnode, double particle_range);
@@ -101,12 +105,12 @@ public:
     // weight 분자 스케일. 전체 weight 크기를 결정하며 weight_update_threshold와 함께 조정.
     // MIN_DIS_CLAMP 변경 시 max_weight_per_obs = WEIGHT_SCALE / MIN_DIS_CLAMP 가 바뀌므로
     // threshold도 같이 재조정 필요.
-    static constexpr double WEIGHT_SCALE = 0.45;
+    static constexpr double WEIGHT_SCALE = 0.6;
 
     // 특징점까지 거리(mm) 정규화 분모. 멀리 있는 특징점일수록 weight를 줄이는 계수.
     // abs(1 - DISTANCE / DIST_NORM): DISTANCE=0 → 1.0, DISTANCE=DIST_NORM → 0.0
     // 현재 10000mm(10m) → 실용 범위(0~2m)에서는 패널티 거의 없음 (0.8~1.0)
-    static constexpr double DIST_NORM = 10000.0;
+    static constexpr double DIST_NORM = 15000.0;
 
     // bearing 필터 임계값 (라디안). 파티클 기준 예상 랜드마크 방향과
     // 실제 관측 방향의 차이가 이 각도를 초과하면 해당 관측을 weight 계산에서 제외.
@@ -128,12 +132,7 @@ public:
     vector<MEASUREMENT> particle_weight;
 
 private:
-    Rect get_grid_size(int Num);
-    Mat get_grid_likelihood(int Num);
-    int get_grid_index(int X, int Y);
     void compute_circle(vector<VISION_POINT> &vect, int start, double yaw);
-
-    Mat Likelihood_mat;
 
     // set_circle / check_local_point 작업 변수
     double X_MAX, X_MIN, Y_MAX, Y_MIN;
@@ -154,13 +153,17 @@ private:
     double resample_noise;
 
     // weight_calculate 작업 변수
-    int zone;
     int X_NUM, L_NUM, T_NUM, N_NUM;
     double weight;
     double min_dis;
     int ptx, pty;
     double obs_angle;
     double exp_angle, diff;
+
+    // 공 필드 좌표 (featureCalc에서 세팅, weight_calculate에서 사용)
+    double ball_field_px_x;
+    double ball_field_px_y;
+    bool   ball_visible;
 };
 
 #endif // LINE_FEATURE_H

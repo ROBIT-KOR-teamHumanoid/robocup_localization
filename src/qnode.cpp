@@ -167,13 +167,21 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
   for (int i = 0; i < (int)msg->corner_confidence.size(); i++)
   {
     vision_data_cnt += 1;
-    Likelihood.vision_point.CONFIDENCE = msg->corner_confidence[i];
-    Likelihood.vision_point.DISTANCE = msg->corner_distance[i];
-    Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0.z) * M_PI / 180) + msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0.z) * M_PI / 180));
-    Likelihood.vision_point.POINT_VEC_Y = (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0.z) * M_PI / 180) - msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0.z) * M_PI / 180));
-    Likelihood.vision_point.STD_X = robot0.x;
-    Likelihood.vision_point.STD_Y = robot0.y;
+    Likelihood.vision_point.CONFIDENCE   = msg->corner_confidence[i];
+    Likelihood.vision_point.DISTANCE     = msg->corner_distance[i];
+    Likelihood.vision_point.POINT_VEC_X  = (-1) * (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0.z) * M_PI / 180) + msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0.z) * M_PI / 180));
+    Likelihood.vision_point.POINT_VEC_Y  = (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0.z) * M_PI / 180) - msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0.z) * M_PI / 180));
+    Likelihood.vision_point.STD_X        = robot0.x;
+    Likelihood.vision_point.STD_Y        = robot0.y;
     Likelihood.vision_point.FEATURE_TYPE = 0;  // L
+    if (i < (int)msg->corner_ball_relative_angle.size())
+      Likelihood.vision_point.BALL_RELATIVE_ANGLE = msg->corner_ball_relative_angle[i];
+    else
+      Likelihood.vision_point.BALL_RELATIVE_ANGLE = 0.0;
+    if (i < (int)msg->corner_ball_feature_distance.size())
+      Likelihood.vision_point.BALL_FEATURE_DISTANCE = msg->corner_ball_feature_distance[i];
+    else
+      Likelihood.vision_point.BALL_FEATURE_DISTANCE = 0.0;
     Likelihood.vision_point_vect.push_back(Likelihood.vision_point);
   }
   vision_data_size += msg->corner_confidence.size();
@@ -182,13 +190,21 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
   for (int i = 0; i < (int)msg->t_confidence.size(); i++)
   {
     vision_data_cnt += 1;
-    Likelihood.vision_point.CONFIDENCE = msg->t_confidence[i];
-    Likelihood.vision_point.DISTANCE = msg->t_distance[i];
-    Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0.z) * M_PI / 180) + msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0.z) * M_PI / 180));
-    Likelihood.vision_point.POINT_VEC_Y = (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0.z) * M_PI / 180) - msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0.z) * M_PI / 180));
-    Likelihood.vision_point.STD_X = robot0.x;
-    Likelihood.vision_point.STD_Y = robot0.y;
+    Likelihood.vision_point.CONFIDENCE   = msg->t_confidence[i];
+    Likelihood.vision_point.DISTANCE     = msg->t_distance[i];
+    Likelihood.vision_point.POINT_VEC_X  = (-1) * (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0.z) * M_PI / 180) + msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0.z) * M_PI / 180));
+    Likelihood.vision_point.POINT_VEC_Y  = (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0.z) * M_PI / 180) - msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0.z) * M_PI / 180));
+    Likelihood.vision_point.STD_X        = robot0.x;
+    Likelihood.vision_point.STD_Y        = robot0.y;
     Likelihood.vision_point.FEATURE_TYPE = 1;  // T
+    if (i < (int)msg->t_ball_relative_angle.size())
+      Likelihood.vision_point.BALL_RELATIVE_ANGLE = msg->t_ball_relative_angle[i];
+    else
+      Likelihood.vision_point.BALL_RELATIVE_ANGLE = 0.0;
+    if (i < (int)msg->t_ball_feature_distance.size())
+      Likelihood.vision_point.BALL_FEATURE_DISTANCE = msg->t_ball_feature_distance[i];
+    else
+      Likelihood.vision_point.BALL_FEATURE_DISTANCE = 0.0;
     Likelihood.vision_point_vect.push_back(Likelihood.vision_point);
   }
   vision_data_size += msg->t_confidence.size();
@@ -197,13 +213,21 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
   for (int i = 0; i < (int)msg->cross_confidence.size(); i++)
   {
     vision_data_cnt += 1;
-    Likelihood.vision_point.CONFIDENCE = msg->cross_confidence[i];
-    Likelihood.vision_point.DISTANCE = msg->cross_distance[i];
-    Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0.z) * M_PI / 180) + msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0.z) * M_PI / 180));
-    Likelihood.vision_point.POINT_VEC_Y = (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0.z) * M_PI / 180) - msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0.z) * M_PI / 180));
-    Likelihood.vision_point.STD_X = robot0.x;
-    Likelihood.vision_point.STD_Y = robot0.y;
+    Likelihood.vision_point.CONFIDENCE   = msg->cross_confidence[i];
+    Likelihood.vision_point.DISTANCE     = msg->cross_distance[i];
+    Likelihood.vision_point.POINT_VEC_X  = (-1) * (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0.z) * M_PI / 180) + msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0.z) * M_PI / 180));
+    Likelihood.vision_point.POINT_VEC_Y  = (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0.z) * M_PI / 180) - msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0.z) * M_PI / 180));
+    Likelihood.vision_point.STD_X        = robot0.x;
+    Likelihood.vision_point.STD_Y        = robot0.y;
     Likelihood.vision_point.FEATURE_TYPE = 2;  // X
+    if (i < (int)msg->cross_ball_relative_angle.size())
+      Likelihood.vision_point.BALL_RELATIVE_ANGLE = msg->cross_ball_relative_angle[i];
+    else
+      Likelihood.vision_point.BALL_RELATIVE_ANGLE = 0.0;
+    if (i < (int)msg->cross_ball_feature_distance.size())
+      Likelihood.vision_point.BALL_FEATURE_DISTANCE = msg->cross_ball_feature_distance[i];
+    else
+      Likelihood.vision_point.BALL_FEATURE_DISTANCE = 0.0;
     Likelihood.vision_point_vect.push_back(Likelihood.vision_point);
   }
   vision_data_size += msg->cross_confidence.size();

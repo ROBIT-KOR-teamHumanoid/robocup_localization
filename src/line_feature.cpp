@@ -2,12 +2,6 @@
 #include "../include/objects/line_feature.hpp"
 #include "../include/robocup_localization/qnode.hpp"
 
-// ============================================================
-// 9-zone 경계 픽셀 단위, FieldCoord 기준 자동 계산
-//
-//  [  Zone1  |  Zone2  |  Zone3  ]
-//  [  Zone4  |  Zone5  |  Zone6  ]
-//  [  Zone7  |  Zone8  |  Zone9  ]
 
 void Line_Feature::featureCalc(QNode *qnode, double particle_range)
 {
@@ -24,7 +18,15 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
                 random_point(qnode->pt[i], qnode->robot0.x, qnode->robot0.y, particle_range);
         }
 
-        set_circle(qnode->robot0.z, vision_point_vect);
+        // 공 필드 좌표 계산 (Ball_2d_X/Y = pan-rotated robot-relative mm)
+    double yaw_rad       = qnode->robot0.z * M_PI / 180.0;
+    double ball_mm_x     = qnode->visionMSG.Ball_2d_X;
+    double ball_mm_y     = qnode->visionMSG.Ball_2d_Y;
+    ball_visible         = (ball_mm_x != 0.0 || ball_mm_y != 0.0);
+    ball_field_px_x      = qnode->robot0.x + (-1) * (ball_mm_x / 1000.0 * FieldCoord::PX_PER_M_X * cos(yaw_rad) + ball_mm_y / 1000.0 * FieldCoord::PX_PER_M_X * sin(yaw_rad));
+    ball_field_px_y      = qnode->robot0.y + (ball_mm_x / 1000.0 * FieldCoord::PX_PER_M_Y * sin(yaw_rad) - ball_mm_y / 1000.0 * FieldCoord::PX_PER_M_Y * cos(yaw_rad));
+
+    set_circle(qnode->robot0.z, vision_point_vect);
 
         // pre-filter: robot0 기준 estimated world 좌표와 nearest landmark 거리가 OBS_FILTER_DIST_PX 초과인 obs 제거
         {
@@ -74,7 +76,7 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
             else
                 cout << "MATCHING!! : " << particle_weight[0].WEIGHT << endl;
 
-            top_n = 1;
+            top_n = 5;
             sum_w = 0.0;
             wx = 0.0;
             wy = 0.0;
@@ -234,9 +236,6 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, 
     // POST CONDITION : weight
     // PURPOSE : 가중치를 구하는 함수
 
-    // 파티클 위치의 구역 번호 계산
-    zone = get_grid_index(PT_X, PT_Y);
-
     // 실제 관측된 특징점 타입별 개수 산출 (0=L/ㄱ, 1=T, 2=X)
     X_NUM = 0;
     L_NUM = 0;
@@ -261,9 +260,6 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, 
         }
     }
 
-    // 존별 랜드마크 인덱스 테이블 (compile-time 생성)
-    const FieldCoord::ZoneLandmarks &zl = FieldCoord::ZONE_LANDMARKS[zone];
-
     weight = 0.0;
 
     for (int i = 0; i < (int)vect.size(); i++)
@@ -276,10 +272,17 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, 
         // 관측 방향 (세계 좌표계, POINT_VEC은 이미 yaw 변환됨)
         obs_angle = atan2(vect[i].POINT_VEC_Y, vect[i].POINT_VEC_X);
 
-        // 해당 존의 랜드마크만 순회 (27개 → zone당 평균 1~5개)
-        for (int k = 0; k < zl.count; k++)
+        // 공 기준 관측 각도 (필드 좌표계): POINT_VEC은 이미 yaw 변환됨 → 파티클 독립적
+        double obs_feat_field_x = vect[i].STD_X + vect[i].POINT_VEC_X;
+        double obs_feat_field_y = vect[i].STD_Y + vect[i].POINT_VEC_Y;
+        double obs_ball_angle   = atan2(obs_feat_field_y - ball_field_px_y,
+                                        obs_feat_field_x - ball_field_px_x);
+
+        double best_ball_angle_diff = LARGE_DIST;
+
+        // zone 필터 없이 전체 27개 랜드마크 탐색
+        for (int j = 0; j < FieldCoord::FEATURE_POINT_COUNT; j++)
         {
-            int j = zl.indices[k];
             if (FieldCoord::ALL_POINTS[j].type == (FieldCoord::FeatureType)vect[i].FEATURE_TYPE)
             {
                 // 파티클 with 후보 랜드마크 방향과 관측 방향 비교 (bearing filter)
@@ -288,13 +291,34 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, 
                 if (diff > M_PI)
                     diff = 2 * M_PI - diff;
                 if (diff > BEARING_MAX_RAD)
-                    continue; // 60° 이상 차이나면 skip, 상황에 따라 조정 파라미터
+                    continue;
 
                 double dx_m = (Local_point_x[j] - ptx) / FieldCoord::PX_PER_M_X;
                 double dy_m = (Local_point_y[j] - pty) / FieldCoord::PX_PER_M_Y;
                 dis = sqrt(dx_m * dx_m + dy_m * dy_m);
-                if (min_dis > dis)
-                    min_dis = dis;
+
+                if (ball_visible)
+                {
+                    // 공 기준 예상 각도 (필드 좌표계): 공→랜드마크j 방향
+                    double exp_ball_angle = atan2(Local_point_y[j] - ball_field_px_y,
+                                                  Local_point_x[j] - ball_field_px_x);
+                    double ball_angle_diff = fabs(obs_ball_angle - exp_ball_angle);
+                    if (ball_angle_diff > M_PI)
+                        ball_angle_diff = 2 * M_PI - ball_angle_diff;
+
+                    // 공 기준 각도가 가장 잘 맞는 랜드마크 선택
+                    if (ball_angle_diff < best_ball_angle_diff)
+                    {
+                        best_ball_angle_diff = ball_angle_diff;
+                        min_dis = dis;
+                    }
+                }
+                else
+                {
+                    // 공 미감지 시 기존 방식 (최소 거리)
+                    if (min_dis > dis)
+                        min_dis = dis;
+                }
             }
         }
         if (min_dis <= MIN_DIS_CLAMP)
@@ -327,74 +351,6 @@ void Line_Feature::random_point(ROBOT &robot, int x, int y, float particle_range
 }
 
 
-Rect Line_Feature::get_grid_size(int Num)
-{
-    // 각 존의 시작점(x, y)과 크기(w, h) — 픽셀 단위
-    if (Num == 1)
-        return Rect(0, 0, FieldCoord::COL_L, FieldCoord::ROW_T);
-    else if (Num == 2)
-        return Rect(FieldCoord::COL_L, 0, FieldCoord::COL_R - FieldCoord::COL_L, FieldCoord::ROW_TC);
-    else if (Num == 3)
-        return Rect(FieldCoord::COL_R, 0, FieldCoord::MAP_W - FieldCoord::COL_R, FieldCoord::ROW_T);
-    else if (Num == 4)
-        return Rect(0, FieldCoord::ROW_T, FieldCoord::COL_L, FieldCoord::ROW_B - FieldCoord::ROW_T);
-    else if (Num == 5)
-        return Rect(FieldCoord::COL_L, FieldCoord::ROW_TC, FieldCoord::COL_R - FieldCoord::COL_L, FieldCoord::ROW_BC - FieldCoord::ROW_TC);
-    else if (Num == 6)
-        return Rect(FieldCoord::COL_R, FieldCoord::ROW_T, FieldCoord::MAP_W - FieldCoord::COL_R, FieldCoord::ROW_B - FieldCoord::ROW_T);
-    else if (Num == 7)
-        return Rect(0, FieldCoord::ROW_B, FieldCoord::COL_L, FieldCoord::MAP_H - FieldCoord::ROW_B);
-    else if (Num == 8)
-        return Rect(FieldCoord::COL_L, FieldCoord::ROW_BC, FieldCoord::COL_R - FieldCoord::COL_L, FieldCoord::MAP_H - FieldCoord::ROW_BC);
-    else if (Num == 9)
-        return Rect(FieldCoord::COL_R, FieldCoord::ROW_B, FieldCoord::MAP_W - FieldCoord::COL_R, FieldCoord::MAP_H - FieldCoord::ROW_B);
-    return Rect(0, 0, 0, 0);
-}
-
-Mat Line_Feature::get_grid_likelihood(int Num)
-{
-    Rect bounds(0, 0, FieldCoord::MAP_W, FieldCoord::MAP_H);
-    Rect r = get_grid_size(Num);
-    Mat roi = Likelihood_mat(r & bounds);
-    return roi;
-}
-
-int Line_Feature::get_grid_index(int X, int Y)
-{
-    const bool left = (X >= 0 && X <= FieldCoord::COL_L);
-    const bool center = (X > FieldCoord::COL_L && X <= FieldCoord::COL_R);
-    const bool right = (X > FieldCoord::COL_R && X <= FieldCoord::MAP_W);
-
-    if (left)
-    {
-        if (Y >= 0 && Y <= FieldCoord::ROW_T)
-            return 1;
-        if (Y > FieldCoord::ROW_T && Y <= FieldCoord::ROW_B)
-            return 4;
-        if (Y > FieldCoord::ROW_B && Y <= FieldCoord::MAP_H)
-            return 7;
-    }
-    else if (center)
-    {
-        if (Y >= 0 && Y <= FieldCoord::ROW_TC)
-            return 2;
-        if (Y > FieldCoord::ROW_TC && Y <= FieldCoord::ROW_BC)
-            return 5;
-        if (Y > FieldCoord::ROW_BC && Y <= FieldCoord::MAP_H)
-            return 8;
-    }
-    else if (right)
-    {
-        if (Y >= 0 && Y <= FieldCoord::ROW_T)
-            return 3;
-        if (Y > FieldCoord::ROW_T && Y <= FieldCoord::ROW_B)
-            return 6;
-        if (Y > FieldCoord::ROW_B && Y <= FieldCoord::MAP_H)
-            return 9;
-    }
-    return 0;
-}
-// 9그리드 계산
 
 bool sort_return(MEASUREMENT x, MEASUREMENT y)
 {
