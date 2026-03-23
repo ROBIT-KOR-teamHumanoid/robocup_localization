@@ -39,7 +39,7 @@ namespace FieldCoord {
   constexpr double E      = 1.0;   // 골 에어리어 길이 (Goal area length)
   constexpr double F      = 3.0;   // 골 에어리어 너비 (Goal area width)
   constexpr double G      = 2.0;   // 페널티 에어리어 길이 (Penalty area length)
-  constexpr double H      = 5.0;   // 페널티 에어리어 너비 (Penalty area width), 규정보다 1m 더 큼, 이미지가 이상해서 그럼, 이미지를 다시 그려야 하나? 얘만 이상하고 다른 값들은 규정대로 해도 잘 되던데
+  constexpr double H      = 4.0;   // 페널티 에어리어 너비 (Penalty area width), 
   constexpr double I_DIST = 1.5;   // 페널티 마크 거리 (Penalty mark distance)
   constexpr double J      = 1.5;   // 센터 서클 지름 (Center circle diameter)
   constexpr double K      = 1.0;   // 보더 스트립 너비 (Border strip width, min)
@@ -87,8 +87,8 @@ namespace FieldCoord {
 
 // 맵 ui 파라미터
 // ============================================================
-constexpr int    MAP_W    = 800;           // 맵 이미지 너비 
-constexpr int    MAP_H    = 600;           // 맵 이미지 높이 
+constexpr int    MAP_W    = 1100;          // 맵 이미지 너비
+constexpr int    MAP_H    = 800;           // 맵 이미지 높이
 
 constexpr double WORLD_W  = A + 2.0 * K;  // 표시 총 너비 (미터) = 필드 + 양쪽 보더
 constexpr double WORLD_H  = B + 2.0 * K;  // 표시 총 높이 (미터)
@@ -151,9 +151,10 @@ enum FeatureType { L_SHAPE, T_SHAPE, X_SHAPE, PENALTY_MARK };
 
 struct FeaturePoint
 {
-  double      x;     // 필드 X 좌표 
-  double      y;     // 필드 Y 좌표 
+  double      x;      // 필드 X 좌표
+  double      y;      // 필드 Y 좌표
   FeatureType type;
+  bool        active = true;  // false: 시각화 전용, 가중치 계산 제외
 };
 
 //ㄱ-shape (L) - 12개
@@ -192,17 +193,17 @@ constexpr FeaturePoint T07 = {  A/2, -H/2, T_SHAPE };
 constexpr FeaturePoint T08 = {  A/2,  F/2, T_SHAPE };
 constexpr FeaturePoint T09 = {  A/2, -F/2, T_SHAPE };
 
-// X-shape - 3개 
-// 필드 중앙 (하프라인 × 센터 마크)
-constexpr FeaturePoint X00 = {  0,     0, X_SHAPE };
+// X-shape - 3개
+// 필드 중앙 (하프라인 × 센터 마크) - 시각화 전용, 가중치 계산 제외
+constexpr FeaturePoint X00 = {  0,     0, X_SHAPE, false };
 // 하프라인 × 센터 서클 상단 교차점
 constexpr FeaturePoint X01 = {  0,  J/2, X_SHAPE };
 // 하프라인 × 센터 서클 하단 교차점
 constexpr FeaturePoint X02 = {  0, -J/2, X_SHAPE };
 
-//패널티 마크 - 2개
-constexpr FeaturePoint PM0 = { -A/2 + I_DIST, 0, PENALTY_MARK };  // 좌측
-constexpr FeaturePoint PM1 = {  A/2 - I_DIST, 0, PENALTY_MARK };  // 우측
+//패널티 마크 - 2개 - 시각화 전용, 가중치 계산 제외
+constexpr FeaturePoint PM0 = { -A/2 + I_DIST, 0, X_SHAPE, false };  // 좌측 패널티마크
+constexpr FeaturePoint PM1 = {  A/2 - I_DIST, 0, X_SHAPE, false };  // 우측 패널티마크
 
 // 전체 특징점 배열 - 27개 
 constexpr FeaturePoint ALL_POINTS[27] = {

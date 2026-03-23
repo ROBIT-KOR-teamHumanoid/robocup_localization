@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <ui version="4.0">
  <class>MainWindowDesign</class>
  <widget class="QMainWindow" name="MainWindowDesign">
@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>871</width>
-    <height>822</height>
+    <width>1141</width>
+    <height>1022</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -22,7 +22,7 @@
 color: rgb(238, 238, 236);</string>
   </property>
   <property name="locale">
-   <locale language="English" country="Australia"/>
+   <locale language="English" country="Australia" />
   </property>
   <widget class="QWidget" name="centralwidget">
    <widget class="QLabel" name="title">
@@ -51,8 +51,8 @@ color: rgb(238, 238, 236);</string>
      <rect>
       <x>20</x>
       <y>60</y>
-      <width>830</width>
-      <height>600</height>
+      <width>1100</width>
+      <height>800</height>
      </rect>
     </property>
     <property name="cursor" stdset="0">
@@ -73,21 +73,21 @@ color: rgb(238, 238, 236);</string>
      <rect>
       <x>10</x>
       <y>50</y>
-      <width>851</width>
-      <height>621</height>
+      <width>1120</width>
+      <height>820</height>
      </rect>
     </property>
     <property name="frameShape">
      <enum>QFrame::Box</enum>
     </property>
     <property name="text">
-     <string/>
+     <string />
     </property>
    </widget>
    <widget class="QLabel" name="label">
     <property name="geometry">
      <rect>
-      <x>750</x>
+      <x>1020</x>
       <y>0</y>
       <width>111</width>
       <height>17</height>
@@ -112,7 +112,7 @@ color: rgb(238, 238, 236);</string>
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>670</y>
+      <y>870</y>
       <width>211</width>
       <height>141</height>
      </rect>
@@ -121,14 +121,14 @@ color: rgb(238, 238, 236);</string>
      <enum>QFrame::Box</enum>
     </property>
     <property name="text">
-     <string/>
+     <string />
     </property>
    </widget>
    <widget class="QLabel" name="subtitle0">
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>680</y>
+      <y>880</y>
       <width>191</width>
       <height>25</height>
      </rect>
@@ -155,7 +155,7 @@ color: rgb(238, 238, 236);</string>
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>715</y>
+      <y>915</y>
       <width>41</width>
       <height>41</height>
      </rect>
@@ -168,7 +168,7 @@ color: rgb(238, 238, 236);</string>
      </font>
     </property>
     <property name="styleSheet">
-     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png&quot;);</string>
+     <string notr="true">border-image:url("/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png");</string>
     </property>
     <property name="text">
      <string>FREE</string>
@@ -178,7 +178,7 @@ color: rgb(238, 238, 236);</string>
     <property name="geometry">
      <rect>
       <x>30</x>
-      <y>570</y>
+      <y>770</y>
       <width>171</width>
       <height>21</height>
      </rect>
@@ -202,7 +202,7 @@ color: rgb(0, 0, 0);</string>
     <property name="geometry">
      <rect>
       <x>30</x>
-      <y>590</y>
+      <y>790</y>
       <width>171</width>
       <height>21</height>
      </rect>
@@ -226,7 +226,7 @@ color: rgb(0, 0, 0);</string>
     <property name="geometry">
      <rect>
       <x>30</x>
-      <y>610</y>
+      <y>810</y>
       <width>171</width>
       <height>21</height>
      </rect>
@@ -250,7 +250,7 @@ color: rgb(0, 0, 0);</string>
     <property name="geometry">
      <rect>
       <x>30</x>
-      <y>630</y>
+      <y>830</y>
       <width>171</width>
       <height>21</height>
      </rect>
@@ -273,8 +273,8 @@ color: rgb(0, 0, 0);</string>
    <widget class="QLabel" name="IK_Y_value">
     <property name="geometry">
      <rect>
-      <x>670</x>
-      <y>630</y>
+      <x>940</x>
+      <y>830</y>
       <width>171</width>
       <height>21</height>
      </rect>
@@ -300,8 +300,8 @@ color: rgb(0, 0, 0);</string>
    <widget class="QLabel" name="IK_X_value">
     <property name="geometry">
      <rect>
-      <x>670</x>
-      <y>610</y>
+      <x>940</x>
+      <y>810</y>
       <width>171</width>
       <height>21</height>
      </rect>
@@ -328,7 +328,7 @@ color: rgb(0, 0, 0);</string>
     <property name="geometry">
      <rect>
       <x>70</x>
-      <y>715</y>
+      <y>915</y>
       <width>41</width>
       <height>41</height>
      </rect>
@@ -341,7 +341,7 @@ color: rgb(0, 0, 0);</string>
      </font>
     </property>
     <property name="styleSheet">
-     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png&quot;);</string>
+     <string notr="true">border-image:url("/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png");</string>
     </property>
     <property name="text">
      <string>A</string>
@@ -351,7 +351,7 @@ color: rgb(0, 0, 0);</string>
     <property name="geometry">
      <rect>
       <x>120</x>
-      <y>715</y>
+      <y>915</y>
       <width>41</width>
       <height>41</height>
      </rect>
@@ -364,7 +364,7 @@ color: rgb(0, 0, 0);</string>
      </font>
     </property>
     <property name="styleSheet">
-     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png&quot;);</string>
+     <string notr="true">border-image:url("/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png");</string>
     </property>
     <property name="text">
      <string>B</string>
@@ -374,7 +374,7 @@ color: rgb(0, 0, 0);</string>
     <property name="geometry">
      <rect>
       <x>170</x>
-      <y>715</y>
+      <y>915</y>
       <width>41</width>
       <height>41</height>
      </rect>
@@ -387,7 +387,7 @@ color: rgb(0, 0, 0);</string>
      </font>
     </property>
     <property name="styleSheet">
-     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png&quot;);</string>
+     <string notr="true">border-image:url("/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png");</string>
     </property>
     <property name="text">
      <string>C</string>
@@ -397,7 +397,7 @@ color: rgb(0, 0, 0);</string>
     <property name="geometry">
      <rect>
       <x>220</x>
-      <y>670</y>
+      <y>870</y>
       <width>641</width>
       <height>141</height>
      </rect>
@@ -406,14 +406,14 @@ color: rgb(0, 0, 0);</string>
      <enum>QFrame::Box</enum>
     </property>
     <property name="text">
-     <string/>
+     <string />
     </property>
    </widget>
    <widget class="QPushButton" name="btn_ball_set">
     <property name="geometry">
      <rect>
       <x>230</x>
-      <y>715</y>
+      <y>915</y>
       <width>41</width>
       <height>41</height>
      </rect>
@@ -426,7 +426,7 @@ color: rgb(0, 0, 0);</string>
      </font>
     </property>
     <property name="styleSheet">
-     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png&quot;);</string>
+     <string notr="true">border-image:url("/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png");</string>
     </property>
     <property name="text">
      <string>SET</string>
@@ -436,7 +436,7 @@ color: rgb(0, 0, 0);</string>
     <property name="geometry">
      <rect>
       <x>230</x>
-      <y>680</y>
+      <y>880</y>
       <width>191</width>
       <height>25</height>
      </rect>
@@ -463,7 +463,7 @@ color: rgb(0, 0, 0);</string>
     <property name="geometry">
      <rect>
       <x>220</x>
-      <y>670</y>
+      <y>870</y>
       <width>211</width>
       <height>141</height>
      </rect>
@@ -472,14 +472,14 @@ color: rgb(0, 0, 0);</string>
      <enum>QFrame::Box</enum>
     </property>
     <property name="text">
-     <string/>
+     <string />
     </property>
    </widget>
    <widget class="QPushButton" name="btn_set_6">
     <property name="geometry">
      <rect>
       <x>170</x>
-      <y>760</y>
+      <y>960</y>
       <width>41</width>
       <height>41</height>
      </rect>
@@ -492,7 +492,7 @@ color: rgb(0, 0, 0);</string>
      </font>
     </property>
     <property name="styleSheet">
-     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png&quot;);</string>
+     <string notr="true">border-image:url("/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png");</string>
     </property>
     <property name="text">
      <string>F</string>
@@ -502,7 +502,7 @@ color: rgb(0, 0, 0);</string>
     <property name="geometry">
      <rect>
       <x>70</x>
-      <y>760</y>
+      <y>960</y>
       <width>41</width>
       <height>41</height>
      </rect>
@@ -515,7 +515,7 @@ color: rgb(0, 0, 0);</string>
      </font>
     </property>
     <property name="styleSheet">
-     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png&quot;);</string>
+     <string notr="true">border-image:url("/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png");</string>
     </property>
     <property name="text">
      <string>D</string>
@@ -525,7 +525,7 @@ color: rgb(0, 0, 0);</string>
     <property name="geometry">
      <rect>
       <x>120</x>
-      <y>760</y>
+      <y>960</y>
       <width>41</width>
       <height>41</height>
      </rect>
@@ -538,7 +538,7 @@ color: rgb(0, 0, 0);</string>
      </font>
     </property>
     <property name="styleSheet">
-     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png&quot;);</string>
+     <string notr="true">border-image:url("/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png");</string>
     </property>
     <property name="text">
      <string>E</string>
@@ -548,7 +548,7 @@ color: rgb(0, 0, 0);</string>
     <property name="geometry">
      <rect>
       <x>330</x>
-      <y>715</y>
+      <y>915</y>
       <width>41</width>
       <height>41</height>
      </rect>
@@ -561,7 +561,7 @@ color: rgb(0, 0, 0);</string>
      </font>
     </property>
     <property name="styleSheet">
-     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png&quot;);</string>
+     <string notr="true">border-image:url("/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png");</string>
     </property>
     <property name="text">
      <string>CLS</string>
@@ -572,8 +572,8 @@ color: rgb(0, 0, 0);</string>
      <rect>
       <x>10</x>
       <y>50</y>
-      <width>851</width>
-      <height>621</height>
+      <width>1120</width>
+      <height>820</height>
      </rect>
     </property>
     <property name="styleSheet">
@@ -583,14 +583,14 @@ color: rgb(0, 0, 0);</string>
      <enum>QFrame::Box</enum>
     </property>
     <property name="text">
-     <string/>
+     <string />
     </property>
    </widget>
    <widget class="QLabel" name="subtitle0_3">
     <property name="geometry">
      <rect>
       <x>440</x>
-      <y>680</y>
+      <y>880</y>
       <width>411</width>
       <height>25</height>
      </rect>
@@ -617,7 +617,7 @@ color: rgb(0, 0, 0);</string>
     <property name="geometry">
      <rect>
       <x>280</x>
-      <y>715</y>
+      <y>915</y>
       <width>41</width>
       <height>41</height>
      </rect>
@@ -630,7 +630,7 @@ color: rgb(0, 0, 0);</string>
      </font>
     </property>
     <property name="styleSheet">
-     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png&quot;);</string>
+     <string notr="true">border-image:url("/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png");</string>
     </property>
     <property name="text">
      <string>DEL</string>
@@ -640,7 +640,7 @@ color: rgb(0, 0, 0);</string>
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>760</y>
+      <y>960</y>
       <width>41</width>
       <height>41</height>
      </rect>
@@ -653,7 +653,7 @@ color: rgb(0, 0, 0);</string>
      </font>
     </property>
     <property name="styleSheet">
-     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png&quot;);</string>
+     <string notr="true">border-image:url("/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png");</string>
     </property>
     <property name="text">
      <string>AUTO</string>
@@ -663,7 +663,7 @@ color: rgb(0, 0, 0);</string>
     <property name="geometry">
      <rect>
       <x>490</x>
-      <y>780</y>
+      <y>980</y>
       <width>151</width>
       <height>21</height>
      </rect>
@@ -686,7 +686,7 @@ color: rgb(46, 52, 54);</string>
     <property name="geometry">
      <rect>
       <x>440</x>
-      <y>735</y>
+      <y>935</y>
       <width>31</width>
       <height>20</height>
      </rect>
@@ -707,7 +707,7 @@ color: rgb(46, 52, 54);</string>
     <property name="geometry">
      <rect>
       <x>490</x>
-      <y>715</y>
+      <y>915</y>
       <width>151</width>
       <height>20</height>
      </rect>
@@ -730,7 +730,7 @@ color: rgb(46, 52, 54);</string>
     <property name="geometry">
      <rect>
       <x>440</x>
-      <y>760</y>
+      <y>960</y>
       <width>31</width>
       <height>20</height>
      </rect>
@@ -751,7 +751,7 @@ color: rgb(46, 52, 54);</string>
     <property name="geometry">
      <rect>
       <x>440</x>
-      <y>780</y>
+      <y>980</y>
       <width>31</width>
       <height>20</height>
      </rect>
@@ -772,7 +772,7 @@ color: rgb(46, 52, 54);</string>
     <property name="geometry">
      <rect>
       <x>440</x>
-      <y>715</y>
+      <y>915</y>
       <width>31</width>
       <height>20</height>
      </rect>
@@ -793,7 +793,7 @@ color: rgb(46, 52, 54);</string>
     <property name="geometry">
      <rect>
       <x>490</x>
-      <y>735</y>
+      <y>935</y>
       <width>151</width>
       <height>20</height>
      </rect>
@@ -816,7 +816,7 @@ color: rgb(46, 52, 54);</string>
     <property name="geometry">
      <rect>
       <x>490</x>
-      <y>760</y>
+      <y>960</y>
       <width>151</width>
       <height>21</height>
      </rect>
@@ -839,7 +839,7 @@ color: rgb(46, 52, 54);</string>
     <property name="geometry">
      <rect>
       <x>700</x>
-      <y>715</y>
+      <y>915</y>
       <width>151</width>
       <height>20</height>
      </rect>
@@ -865,7 +865,7 @@ color: rgb(46, 52, 54);</string>
     <property name="geometry">
      <rect>
       <x>650</x>
-      <y>715</y>
+      <y>915</y>
       <width>41</width>
       <height>20</height>
      </rect>
@@ -886,7 +886,7 @@ color: rgb(46, 52, 54);</string>
     <property name="geometry">
      <rect>
       <x>660</x>
-      <y>760</y>
+      <y>960</y>
       <width>81</width>
       <height>41</height>
      </rect>
@@ -900,7 +900,7 @@ color: rgb(46, 52, 54);</string>
      </font>
     </property>
     <property name="styleSheet">
-     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_save_save.png&quot;);</string>
+     <string notr="true">border-image:url("/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_save_save.png");</string>
     </property>
     <property name="text">
      <string>save</string>
@@ -910,7 +910,7 @@ color: rgb(46, 52, 54);</string>
     <property name="geometry">
      <rect>
       <x>770</x>
-      <y>760</y>
+      <y>960</y>
       <width>81</width>
       <height>41</height>
      </rect>
@@ -924,7 +924,7 @@ color: rgb(46, 52, 54);</string>
      </font>
     </property>
     <property name="styleSheet">
-     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_save_save.png&quot;);</string>
+     <string notr="true">border-image:url("/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_save_save.png");</string>
     </property>
     <property name="text">
      <string>info</string>
@@ -998,7 +998,7 @@ color: rgb(46, 52, 54);</string>
    </property>
   </action>
  </widget>
- <resources/>
+ <resources />
  <connections>
   <connection>
    <sender>action_Quit</sender>

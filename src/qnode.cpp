@@ -220,6 +220,8 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
     Likelihood.vision_point.STD_X        = robot0.x;
     Likelihood.vision_point.STD_Y        = robot0.y;
     Likelihood.vision_point.FEATURE_TYPE = 2;  // X
+
+    
     if (i < (int)msg->cross_ball_relative_angle.size())
       Likelihood.vision_point.BALL_RELATIVE_ANGLE = msg->cross_ball_relative_angle[i];
     else
@@ -232,7 +234,7 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
   }
   vision_data_size += msg->cross_confidence.size();
 
-  if (!Likelihood.vision_point_vect.empty())
+  if (!Likelihood.vision_point_vect.empty() && visionMSG.flag_pan == 0)
   {
     // RCLCPP_INFO(node->get_logger(),
     //   "[OBS] vect=%zu (L=%d T=%d X=%d) total_cnt=%d",
@@ -241,7 +243,7 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
     //   (int)msg->t_confidence.size(),
     //   (int)msg->cross_confidence.size(),
     //   vision_data_cnt);
-    Likelihood.set_circle(robot0.z, Likelihood.vision_point_vect);
+    Likelihood.filter.setCircle(robot0.z, Likelihood.vision_point_vect);
     emit featureReceived();
   }
 }
@@ -275,6 +277,7 @@ void QNode::visionCallback(const robocup_vision::msg::Robocupvision::SharedPtr m
   }
   visionMSG.Ball_speed_level = msg->ball_speed_level;
   visionMSG.Scan_mode = msg->scan_mode;
+  visionMSG.flag_pan = msg->flag_pan;
   if (visionMSG.Ball_speed_level > 150)
   {
     visionMSG.Ball_speed_level = 150;

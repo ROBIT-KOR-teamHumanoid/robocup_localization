@@ -42,21 +42,110 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
   connect(m_screenTimer, SIGNAL(timeout()), this, SLOT(Print_Screen()));
   m_screenTimer->start(200);
 
-  // 맵 이미지 로드 및 800×600 스케일링
-  QString pkg_path = QString::fromStdString(
-      ament_index_cpp::get_package_share_directory("robocup_localization"));
+  // 맵 QPixmap 동적 생성 (FieldCoord 기반)
+  buf = QPixmap(FieldCoord::MAP_W, FieldCoord::MAP_H);
+  buf.fill(QColor(34, 139, 34));
 
-  QString img_path = pkg_path + "/resources/Map/2022_RoboCup_Field.png";
-
-  QImage img(img_path);
-
-  if (img.isNull())
   {
-    qDebug() << "이미지 로딩 실패:" << img_path;
-  }
+    QPainter p(&buf);
+    p.setRenderHint(QPainter::Antialiasing);
 
-  buf = QPixmap::fromImage(img);
-  buf = buf.scaled(FieldCoord::MAP_W, FieldCoord::MAP_H);
+    int line_w = (int)(FieldCoord::LINE_W * FieldCoord::PX_PER_M_X);
+    if (line_w < 1)
+      line_w = 1;
+
+    p.setPen(QPen(Qt::white, line_w));
+    p.setBrush(Qt::NoBrush);
+
+    // 외곽 경계선
+    p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2),
+               FieldCoord::toPixelY( FieldCoord::B / 2),
+               (int)(FieldCoord::A * FieldCoord::PX_PER_M_X),
+               (int)(FieldCoord::B * FieldCoord::PX_PER_M_Y));
+
+    // 하프라인
+    p.drawLine(FieldCoord::toPixelX(0), FieldCoord::toPixelY( FieldCoord::B / 2),
+               FieldCoord::toPixelX(0), FieldCoord::toPixelY(-FieldCoord::B / 2));
+
+    // 센터 서클 (J = 지름)
+    int circle_r = (int)(FieldCoord::J / 2.0 * FieldCoord::PX_PER_M_X);
+    p.drawEllipse(FieldCoord::toPixelX(0) - circle_r,
+                  FieldCoord::toPixelY(0) - circle_r,
+                  circle_r * 2, circle_r * 2);
+
+    // 골대 (필드 경계 바깥, C 깊이 × D 너비)
+    int goal_w = (int)(FieldCoord::C * FieldCoord::PX_PER_M_X);
+    int goal_h = (int)(FieldCoord::D * FieldCoord::PX_PER_M_Y);
+    p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2) - goal_w,
+               FieldCoord::toPixelY( FieldCoord::D / 2),
+               goal_w, goal_h);
+    p.drawRect(FieldCoord::toPixelX( FieldCoord::A / 2),
+               FieldCoord::toPixelY( FieldCoord::D / 2),
+               goal_w, goal_h);
+
+    // 좌측 골 에어리어
+    p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2),
+               FieldCoord::toPixelY( FieldCoord::F / 2),
+               (int)(FieldCoord::E * FieldCoord::PX_PER_M_X),
+               (int)(FieldCoord::F * FieldCoord::PX_PER_M_Y));
+
+    // 우측 골 에어리어
+    p.drawRect(FieldCoord::toPixelX(FieldCoord::A / 2 - FieldCoord::E),
+               FieldCoord::toPixelY(FieldCoord::F / 2),
+               (int)(FieldCoord::E * FieldCoord::PX_PER_M_X),
+               (int)(FieldCoord::F * FieldCoord::PX_PER_M_Y));
+
+    // 좌측 페널티 에어리어
+    p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2),
+               FieldCoord::toPixelY( FieldCoord::H / 2),
+               (int)(FieldCoord::G * FieldCoord::PX_PER_M_X),
+               (int)(FieldCoord::H * FieldCoord::PX_PER_M_Y));
+
+    // 우측 페널티 에어리어
+    p.drawRect(FieldCoord::toPixelX(FieldCoord::A / 2 - FieldCoord::G),
+               FieldCoord::toPixelY(FieldCoord::H / 2),
+               (int)(FieldCoord::G * FieldCoord::PX_PER_M_X),
+               (int)(FieldCoord::H * FieldCoord::PX_PER_M_Y));
+
+    // 마크 크기 (픽셀)
+    int mark_sz = (int)(FieldCoord::MARK_SZ / 2.0 * FieldCoord::PX_PER_M_X);
+    if (mark_sz < 2)
+      mark_sz = 2;
+
+    p.setBrush(Qt::white);
+
+    // 센터 마크 (점)
+    p.drawEllipse(FieldCoord::toPixelX(0) - mark_sz, FieldCoord::toPixelY(0) - mark_sz,
+                  mark_sz * 2, mark_sz * 2);
+
+    // 좌측 페널티 마크 (점)
+    int pm0_x = FieldCoord::toPixelX(-FieldCoord::A / 2 + FieldCoord::I_DIST);
+    int pm0_y = FieldCoord::toPixelY(0);
+    p.drawEllipse(pm0_x - mark_sz, pm0_y - mark_sz, mark_sz * 2, mark_sz * 2);
+
+    // 우측 페널티 마크 (점)
+    int pm1_x = FieldCoord::toPixelX(FieldCoord::A / 2 - FieldCoord::I_DIST);
+    int pm1_y = FieldCoord::toPixelY(0);
+    p.drawEllipse(pm1_x - mark_sz, pm1_y - mark_sz, mark_sz * 2, mark_sz * 2);
+
+    p.setBrush(Qt::NoBrush);
+
+    // 코너 아크 (L_ARC > 0인 경우만)
+    if (FieldCoord::L_ARC > 0.0)
+    {
+      int r   = (int)(FieldCoord::L_ARC * FieldCoord::PX_PER_M_X);
+      int x_l = FieldCoord::toPixelX(-FieldCoord::A / 2);
+      int x_r = FieldCoord::toPixelX( FieldCoord::A / 2);
+      int y_t = FieldCoord::toPixelY( FieldCoord::B / 2);
+      int y_b = FieldCoord::toPixelY(-FieldCoord::B / 2);
+      p.drawArc(x_l - r, y_t - r, 2 * r, 2 * r, 270 * 16,  90 * 16);  // 좌상단
+      p.drawArc(x_r - r, y_t - r, 2 * r, 2 * r, 180 * 16,  90 * 16);  // 우상단
+      p.drawArc(x_l - r, y_b - r, 2 * r, 2 * r,   0 * 16,  90 * 16);  // 좌하단
+      p.drawArc(x_r - r, y_b - r, 2 * r, 2 * r,  90 * 16,  90 * 16);  // 우하단
+    }
+
+    p.end();
+  }
 
   scene = new QGraphicsScene(this);
   qnode->robot0.x = FieldCoord::MAP_W / 2; // 로봇 시작 포인트, 맵의 중앙
@@ -619,10 +708,10 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
   // 비전에서 측정된 특징점 표시
   for (int i = 0; i < FieldCoord::FEATURE_POINT_COUNT; i++)
   {
-    if (qnode->Likelihood.Local_point_on_off[i] == 1)
+    if (qnode->Likelihood.filter.Local_point_on_off[i] == 1)
     {
-      scene->addEllipse(cvt_Print_xy(qnode->Likelihood.Local_point_x[i]) - 4,
-                        cvt_Print_xy(qnode->Likelihood.Local_point_y[i]) - 4, 8,
+      scene->addEllipse(cvt_Print_xy(qnode->Likelihood.filter.Local_point_x[i]) - 4,
+                        cvt_Print_xy(qnode->Likelihood.filter.Local_point_y[i]) - 4, 8,
                         8, blackPen1);
     }
   }
@@ -644,8 +733,8 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
         continue;
 
       // 관측 특징점의 절대 픽셀 좌표
-      int obs_px = vp.STD_X + vp.POINT_VEC_X;
-      int obs_py = vp.STD_Y + vp.POINT_VEC_Y;
+      int obs_px = VisionPointUtils::worldX(vp);
+      int obs_py = VisionPointUtils::worldY(vp);
 
       // 같은 타입의 로컬 맵 특징점 중 가장 가까운 것 찾기
       double min_dis = MAP_MATCH_THRESHOLD_PX;
@@ -654,8 +743,8 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
       {
         if ((int)FieldCoord::ALL_POINTS[j].type != vp.FEATURE_TYPE)
           continue;
-        double dis = sqrt(pow(qnode->Likelihood.Local_point_x[j] - obs_px, 2) +
-                          pow(qnode->Likelihood.Local_point_y[j] - obs_py, 2));
+        double dis = sqrt(pow(qnode->Likelihood.filter.Local_point_x[j] - obs_px, 2) +
+                          pow(qnode->Likelihood.filter.Local_point_y[j] - obs_py, 2));
         if (dis < min_dis)
         {
           min_dis = dis;
@@ -664,8 +753,8 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
       }
       if (nearest_j >= 0)
       {
-        scene->addEllipse(cvt_Print_xy(qnode->Likelihood.Local_point_x[nearest_j]) - 6,
-                          cvt_Print_xy(qnode->Likelihood.Local_point_y[nearest_j]) - 6,
+        scene->addEllipse(cvt_Print_xy(qnode->Likelihood.filter.Local_point_x[nearest_j]) - 6,
+                          cvt_Print_xy(qnode->Likelihood.filter.Local_point_y[nearest_j]) - 6,
                           12, 12, nearbyPen, nearbyBrush);
       }
     }
@@ -694,12 +783,12 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
   if (qnode->Likelihood.vision_point_vect.size() != 0)
   {
     // cout<<qnode->Likelihood.CIRCLE_R<<endl;
-    scene->addEllipse(cvt_Print_xy(qnode->Likelihood.CIRCLE_CENTER.x -
-                                   qnode->Likelihood.CIRCLE_R),
-                      cvt_Print_xy(qnode->Likelihood.CIRCLE_CENTER.y -
-                                   qnode->Likelihood.CIRCLE_R),
-                      cvt_Print_xy(qnode->Likelihood.CIRCLE_R * 2),
-                      cvt_Print_xy(qnode->Likelihood.CIRCLE_R * 2), blackPen);
+    scene->addEllipse(cvt_Print_xy(qnode->Likelihood.filter.CIRCLE_CENTER.x -
+                                   qnode->Likelihood.filter.CIRCLE_R),
+                      cvt_Print_xy(qnode->Likelihood.filter.CIRCLE_CENTER.y -
+                                   qnode->Likelihood.filter.CIRCLE_R),
+                      cvt_Print_xy(qnode->Likelihood.filter.CIRCLE_R * 2),
+                      cvt_Print_xy(qnode->Likelihood.filter.CIRCLE_R * 2), blackPen);
   }
 
   // PRINT MASTER TARGET
