@@ -19,14 +19,21 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
         }
 
         // 공 필드 좌표 계산 (Ball_2d_X/Y = pan-rotated robot-relative mm)
-        double yaw_rad      = qnode->robot0.z * M_PI / 180.0;
+        float robot0_x, robot0_y, robot0_z;
+        {
+            std::lock_guard<std::mutex> robot0_lock(qnode->robot0_mutex);
+            robot0_x = qnode->robot0.x;
+            robot0_y = qnode->robot0.y;
+            robot0_z = qnode->robot0.z;
+        }
+        double yaw_rad      = robot0_z * M_PI / 180.0;
         double ball_mm_x    = qnode->visionMSG.Ball_2d_X;
         double ball_mm_y    = qnode->visionMSG.Ball_2d_Y;
         ball_visible        = (ball_mm_x != 0.0 || ball_mm_y != 0.0);
-        ball_field_px_x     = qnode->robot0.x + (-1) * (ball_mm_x / 1000.0 * FieldCoord::PX_PER_M_X * cos(yaw_rad) + ball_mm_y / 1000.0 * FieldCoord::PX_PER_M_X * sin(yaw_rad));
-        ball_field_px_y     = qnode->robot0.y + (ball_mm_x / 1000.0 * FieldCoord::PX_PER_M_Y * sin(yaw_rad) - ball_mm_y / 1000.0 * FieldCoord::PX_PER_M_Y * cos(yaw_rad));
+        ball_field_px_x     = robot0_x + (-1) * (ball_mm_x / 1000.0 * FieldCoord::PX_PER_M_X * cos(yaw_rad) + ball_mm_y / 1000.0 * FieldCoord::PX_PER_M_X * sin(yaw_rad));
+        ball_field_px_y     = robot0_y + (ball_mm_x / 1000.0 * FieldCoord::PX_PER_M_Y * sin(yaw_rad) - ball_mm_y / 1000.0 * FieldCoord::PX_PER_M_Y * cos(yaw_rad));
 
-        filter.setCircle(qnode->robot0.z, vision_point_vect);
+        filter.setCircle(robot0_z, vision_point_vect);
 
         filter.prefilter(vision_point_vect);
 
@@ -34,7 +41,7 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
         {
             fc_meas.NUM    = i;
             fc_meas.WEIGHT = weight_calculate(qnode->pt[i].x, qnode->pt[i].y,
-                                              qnode->robot0.x, qnode->robot0.y,
+                                              robot0_x, robot0_y,
                                               vision_point_vect);
             particle_weight.push_back(fc_meas);
         }
@@ -64,9 +71,23 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
                 wx += w * qnode->pt[particle_weight[i].NUM].x;
                 wy += w * qnode->pt[particle_weight[i].NUM].y;
             }
-            double jump = sqrt(pow(wx - qnode->robot0.x, 2) + pow(wy - qnode->robot0.y, 2));
-            if (jump < MAX_JUMP_PX)
+            // top-5 파티클 위치 분산 계산 - 너무 퍼져있으면 신뢰할 수 없는 매칭
+            double var_x = 0.0, var_y = 0.0;
+            for (int i = 0; i < top_n; i++)
             {
+                double dx = qnode->pt[particle_weight[i].NUM].x - wx;
+                double dy = qnode->pt[particle_weight[i].NUM].y - wy;
+                var_x += dx * dx;
+                var_y += dy * dy;
+            }
+            var_x /= top_n;
+            var_y /= top_n;
+            double std_px = sqrt(var_x + var_y);
+
+            double jump = sqrt(pow(wx - robot0_x, 2) + pow(wy - robot0_y, 2));
+            if (jump < MAX_JUMP_PX && std_px < MAX_SPREAD_PX)
+            {
+                std::lock_guard<std::mutex> robot0_lock(qnode->robot0_mutex);
                 qnode->robot0.x = (int)wx;
                 qnode->robot0.y = (int)wy;
             }
@@ -155,40 +176,11 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, 
 
         double best_ball_angle_diff = LARGE_DIST;
 
-        // X_SHAPE: 파티클↔랜드마크 실제 거리와 관측 거리 차이가 최소인 랜드마크 하나만 사용
-        int nearest_x_idx = -1;
-        if ((FieldCoord::FeatureType)vect[i].FEATURE_TYPE == FieldCoord::X_SHAPE)
-        {
-            double obs_dist_m  = vect[i].DISTANCE / 1000.0;
-            double best_x_diff = LARGE_DIST;
-            for (int j = 0; j < FieldCoord::FEATURE_POINT_COUNT; j++)
-            {
-                if (!FieldCoord::ALL_POINTS[j].active)
-                    continue;
-                if (FieldCoord::ALL_POINTS[j].type != FieldCoord::X_SHAPE)
-                    continue;
-                double dx_m       = (filter.Local_point_x[j] - PT_X) / FieldCoord::PX_PER_M_X;
-                double dy_m       = (filter.Local_point_y[j] - PT_Y) / FieldCoord::PX_PER_M_Y;
-                double actual_dist = sqrt(dx_m * dx_m + dy_m * dy_m);
-                double diff        = fabs(actual_dist - obs_dist_m);
-                if (diff < best_x_diff)
-                {
-                    best_x_diff   = diff;
-                    nearest_x_idx = j;
-                }
-            }
-        }
-
         for (int j = 0; j < FieldCoord::FEATURE_POINT_COUNT; j++)
         {
             if (!FieldCoord::ALL_POINTS[j].active)
                 continue;
             if (FieldCoord::ALL_POINTS[j].type != (FieldCoord::FeatureType)vect[i].FEATURE_TYPE)
-                continue;
-
-            // X_SHAPE: 가장 가까운 랜드마크만 사용
-            if ((FieldCoord::FeatureType)vect[i].FEATURE_TYPE == FieldCoord::X_SHAPE
-                && j != nearest_x_idx)
                 continue;
 
             // bearing 필터
@@ -199,6 +191,16 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, 
             double dx_m = (filter.Local_point_x[j] - ptx) / FieldCoord::PX_PER_M_X;
             double dy_m = (filter.Local_point_y[j] - pty) / FieldCoord::PX_PER_M_Y;
             double dis  = sqrt(dx_m * dx_m + dy_m * dy_m);
+
+            // L_SHAPE: 거리 차이가 L_DIST_GATE_M 초과이면 skip
+            if ((FieldCoord::FeatureType)vect[i].FEATURE_TYPE == FieldCoord::L_SHAPE)
+            {
+                double actual_dist_m = sqrt(pow((filter.Local_point_x[j] - PT_X) / FieldCoord::PX_PER_M_X, 2)
+                                          + pow((filter.Local_point_y[j] - PT_Y) / FieldCoord::PX_PER_M_Y, 2));
+                double dist_diff = fabs(actual_dist_m - vect[i].DISTANCE / 1000.0);
+                if (dist_diff > L_DIST_GATE_M)
+                    continue;
+            }
 
             if (ball_visible)
             {
@@ -217,7 +219,7 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, 
             }
             else
             {
-                // 공 미감지 시 기존 방식 (최소 거리)
+                // 기존 방식 (최소 거리)
                 if (dis < min_dis)
                     min_dis = dis;
             }

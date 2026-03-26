@@ -27,11 +27,11 @@
 #include "robocup_vision/msg/robocupvision.hpp"
 #include "robocup_vision/msg/robocupvisionfeature.hpp"
 #include "humanoid_interfaces/msg/ik_coord_msg.hpp"
-#include "humanoid_interfaces/msg/robocuplocalization25.hpp"
+
 #include "robocup_localization/msg/robocup_localization.hpp"
 #include "gamecontroller/msg/gamecontroldata.hpp"
 #include "humanoid_interfaces/msg/udp2master.hpp"
-#include "humanoid_interfaces/msg/master2localization25.hpp"
+#include "humanoid_interfaces/msg/master2localization.hpp"
 
 #include "../objects/robot.hpp"
 #include "../objects/obstacle.hpp"
@@ -124,6 +124,8 @@ public:
 
   // Thread safety: vision_point_vect 공유 보호
   std::mutex vision_mutex;
+  // Thread safety: robot0 공유 보호 (ROS 콜백 스레드 ↔ Qt 메인 스레드)
+  std::mutex robot0_mutex;
 
 protected:
   void run();
@@ -137,7 +139,7 @@ private:
   void ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg);
   void gameControlCallback(const gamecontroller::msg::Gamecontroldata::SharedPtr msg);
   void udpCallback(const humanoid_interfaces::msg::Udp2master::SharedPtr msg);
-  void masterCallback(const humanoid_interfaces::msg::Master2localization25::SharedPtr msg);
+  void masterCallback(const humanoid_interfaces::msg::Master2localization::SharedPtr msg);
 
   rclcpp::Subscription<humanoid_interfaces::msg::ImuMsg>::SharedPtr imu_sub_;
   rclcpp::Subscription<robocup_vision::msg::Robocupvision>::SharedPtr vision_sub_;
@@ -145,7 +147,7 @@ private:
   rclcpp::Subscription<humanoid_interfaces::msg::IkCoordMsg>::SharedPtr ik_sub_;
   rclcpp::Subscription<gamecontroller::msg::Gamecontroldata>::SharedPtr game_control_sub_;
   rclcpp::Subscription<humanoid_interfaces::msg::Udp2master>::SharedPtr udp_sub_;
-  rclcpp::Subscription<humanoid_interfaces::msg::Master2localization25>::SharedPtr master_sub_;
+  rclcpp::Subscription<humanoid_interfaces::msg::Master2localization>::SharedPtr master_sub_;
 
   // ikCallback 작업 변수
   double ik_Xmoved, ik_Ymoved;

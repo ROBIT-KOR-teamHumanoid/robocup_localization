@@ -66,9 +66,16 @@ public:
     // 특징점까지 거리(mm) 정규화 분모. 멀리 있는 특징점일수록 weight를 줄이는 계수.
     static constexpr double DIST_NORM = 15000.0;
 
+    // L_SHAPE 거리 매칭 게이트 (미터). 관측 거리와 실제 거리 차이가 이 값 초과이면 랜드마크 skip.
+    static constexpr double L_DIST_GATE_M = 0.5;
+
     // 한 번의 MATCHING에서 robot0 위치가 이동할 수 있는 최대 거리 (미터).
     static constexpr double MAX_JUMP_M  = 0.7;
     static constexpr double MAX_JUMP_PX = MAX_JUMP_M * FieldCoord::PX_PER_M_X;
+
+    // top-N 파티클 위치 분산 허용 한계 (픽셀). 이보다 퍼져있으면 업데이트 reject.
+    static constexpr double MAX_SPREAD_M  = 0.5;
+    static constexpr double MAX_SPREAD_PX = MAX_SPREAD_M * FieldCoord::PX_PER_M_X;
 
     vector<MEASUREMENT> particle_weight;
 

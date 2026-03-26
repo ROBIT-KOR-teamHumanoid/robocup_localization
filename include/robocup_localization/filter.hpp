@@ -42,10 +42,10 @@ public:
 
     // 필터 파라미터
     // bearing 임계값 (라디안). 예상 방향과 관측 방향 차이가 이 값 초과이면 랜드마크 skip.
-    static constexpr double BEARING_MAX_RAD   = M_PI / 3.0;  // 60°
+    static constexpr double BEARING_MAX_RAD   = M_PI / 9.0;  // 60°
 
     // pre-filter 거리 임계값 (미터). 가장 가까운 랜드마크가 이 값 초과이면 관측 제거.
-    static constexpr double OBS_FILTER_DIST_M = 1.5;
+    static constexpr double OBS_FILTER_DIST_M = 1.0;
 
     static constexpr double LARGE_DIST        = 99999999.0;
 

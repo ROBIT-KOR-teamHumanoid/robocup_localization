@@ -161,7 +161,6 @@ void MainWindow::main()
   setting();     // 공 선택 & 파라미터 불러오기 & UI에서 오도메트리 값 설정
   select_ball(); // UDP 통신에서 받은 다른 로봇의 공데이터로 공 위치 설정 & obstacle 위치 계산
   publish_msg(); // 다른 노드로 데이터 publish
-  Print_Screen_Ball();
 }
 
 void MainWindow::Print_Screen_Ball()
@@ -708,6 +707,8 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
   // 비전에서 측정된 특징점 표시
   for (int i = 0; i < FieldCoord::FEATURE_POINT_COUNT; i++)
   {
+    if (!FieldCoord::ALL_POINTS[i].active)
+      continue;
     if (qnode->Likelihood.filter.Local_point_on_off[i] == 1)
     {
       scene->addEllipse(cvt_Print_xy(qnode->Likelihood.filter.Local_point_x[i]) - 4,
@@ -900,6 +901,8 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
         cvt_Print_xy(qnode->robot4.y) - cos(qnode->robot4.z * DEG2RAD) * 10,
         blackPen3);
   }
+
+  Print_Screen_Ball();
 }
 
 void MainWindow::mouseReleaseEvent(QMouseEvent *e)

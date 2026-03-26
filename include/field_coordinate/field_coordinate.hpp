@@ -35,11 +35,11 @@ namespace FieldCoord {
   constexpr double A      = 9.0;   // 필드 길이 (Field length)
   constexpr double B      = 6.0;   // 필드 너비 (Field width)
   constexpr double C      = 1.0;   // 골 깊이   (Goal depth)
-  constexpr double D      = 1.9;   // 골 너비   (Goal width)
+  constexpr double D      = 2.6;   // 골 너비   (Goal width)
   constexpr double E      = 1.0;   // 골 에어리어 길이 (Goal area length)
   constexpr double F      = 3.0;   // 골 에어리어 너비 (Goal area width)
   constexpr double G      = 2.0;   // 페널티 에어리어 길이 (Penalty area length)
-  constexpr double H      = 4.0;   // 페널티 에어리어 너비 (Penalty area width), 
+  constexpr double H      = 5.0;   // 페널티 에어리어 너비 (Penalty area width), 
   constexpr double I_DIST = 1.5;   // 페널티 마크 거리 (Penalty mark distance)
   constexpr double J      = 1.5;   // 센터 서클 지름 (Center circle diameter)
   constexpr double K      = 1.0;   // 보더 스트립 너비 (Border strip width, min)
@@ -195,7 +195,7 @@ constexpr FeaturePoint T09 = {  A/2, -F/2, T_SHAPE };
 
 // X-shape - 3개
 // 필드 중앙 (하프라인 × 센터 마크) - 시각화 전용, 가중치 계산 제외
-constexpr FeaturePoint X00 = {  0,     0, X_SHAPE, false };
+//constexpr FeaturePoint X00 = {  0,     0, X_SHAPE, false };
 // 하프라인 × 센터 서클 상단 교차점
 constexpr FeaturePoint X01 = {  0,  J/2, X_SHAPE };
 // 하프라인 × 센터 서클 하단 교차점
@@ -205,19 +205,19 @@ constexpr FeaturePoint X02 = {  0, -J/2, X_SHAPE };
 constexpr FeaturePoint PM0 = { -A/2 + I_DIST, 0, X_SHAPE, false };  // 좌측 패널티마크
 constexpr FeaturePoint PM1 = {  A/2 - I_DIST, 0, X_SHAPE, false };  // 우측 패널티마크
 
-// 전체 특징점 배열 - 27개 
-constexpr FeaturePoint ALL_POINTS[27] = {
+// 전체 특징점 배열 - 26개
+constexpr FeaturePoint ALL_POINTS[26] = {
   // ㄱ-shape (index 0~11)
   L00, L01, L02, L03, L04, L05, L06, L07, L08, L09, L10, L11,
   // T-shape  (index 12~21)
   T00, T01, T02, T03, T04, T05, T06, T07, T08, T09,
-  // X-shape  (index 22~24)
-  X00, X01, X02,
-  // 페널티 마크 (index 25~26)
+  // X-shape  (index 22~23)
+  X01, X02,
+  // 페널티 마크 (index 24~25)
   PM0, PM1
 };
 
-constexpr int FEATURE_POINT_COUNT = 27;
+constexpr int FEATURE_POINT_COUNT = 26;
 
 // ============================================================
 // 존별 랜드마크 인덱스 테이블 (compile-time 자동 생성)
