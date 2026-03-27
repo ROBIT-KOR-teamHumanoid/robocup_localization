@@ -69,7 +69,10 @@ public:
     // L_SHAPE 거리 매칭 게이트 (미터). 관측 거리와 실제 거리 차이가 이 값 초과이면 랜드마크 skip.
     static constexpr double L_DIST_GATE_M = 0.5;
 
-    // 한 번의 MATCHING에서 robot0 위치가 이동할 수 있는 최대 거리 (미터).
+    // 한 번의 MATCHING에서 robot0 위치가 이동할 수 있는7 최소/최대 거리 (미터).
+    // MIN_JUMP_PX 미만이면 진동 억제를 위해 업데이트 skip.
+    static constexpr double MIN_JUMP_M  = 0.08;
+    static constexpr double MIN_JUMP_PX = MIN_JUMP_M * FieldCoord::PX_PER_M_X;
     static constexpr double MAX_JUMP_M  = 0.7;
     static constexpr double MAX_JUMP_PX = MAX_JUMP_M * FieldCoord::PX_PER_M_X;
 

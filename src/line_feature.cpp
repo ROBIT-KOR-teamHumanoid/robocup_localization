@@ -59,7 +59,7 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
             else
                 cout << "MATCHING!! : " << particle_weight[0].WEIGHT << endl;
 
-            top_n = 5;
+            top_n = 3;  
             sum_w = 0.0;
             wx    = 0.0;
             wy    = 0.0;
@@ -85,7 +85,7 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
             double std_px = sqrt(var_x + var_y);
 
             double jump = sqrt(pow(wx - robot0_x, 2) + pow(wy - robot0_y, 2));
-            if (jump < MAX_JUMP_PX && std_px < MAX_SPREAD_PX)
+            if (jump >= MIN_JUMP_PX && jump < MAX_JUMP_PX && std_px < MAX_SPREAD_PX)
             {
                 std::lock_guard<std::mutex> robot0_lock(qnode->robot0_mutex);
                 qnode->robot0.x = (int)wx;

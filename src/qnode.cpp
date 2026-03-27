@@ -116,15 +116,15 @@ QNode::QNode(int argc, char **argv)
   auto master_topic = node->get_parameter("topic.master_sub_topic").as_string();
   auto local_pub_topic = node->get_parameter("topic.local_pub_topic").as_string();
 
-  imu_sub_ = node->create_subscription<humanoid_interfaces::msg::ImuMsg>(imu_topic, rclcpp::QoS(rclcpp::KeepLast(10)).reliable().best_effort(), std::bind(&QNode::imuCallback, this, std::placeholders::_1));
+  imu_sub_ = node->create_subscription<humanoid_interfaces::msg::ImuMsg>(imu_topic, rclcpp::QoS(rclcpp::KeepLast(1)).reliable().best_effort(), std::bind(&QNode::imuCallback, this, std::placeholders::_1));
   vision_sub_ = node->create_subscription<robocup_vision::msg::Robocupvision>(vision_topic, 1, std::bind(&QNode::visionCallback, this, std::placeholders::_1));
-  vision_feature_sub_ = node->create_subscription<robocup_vision::msg::Robocupvisionfeature>(vision_feature_topic, 100, std::bind(&QNode::visionFeatureCallback, this, std::placeholders::_1));
-  ik_sub_ = node->create_subscription<humanoid_interfaces::msg::IkCoordMsg>(ik_topic, 10, std::bind(&QNode::ikCallback, this, std::placeholders::_1));
-  game_control_sub_ = node->create_subscription<gamecontroller::msg::Gamecontroldata>(game_control_topic, 10, std::bind(&QNode::gameControlCallback, this, std::placeholders::_1));
-  udp_sub_ = node->create_subscription<humanoid_interfaces::msg::Udp2master>(udp_topic, 10, std::bind(&QNode::udpCallback, this, std::placeholders::_1));
-  master_sub_ = node->create_subscription<humanoid_interfaces::msg::Master2localization>(master_topic, 10, std::bind(&QNode::masterCallback, this, std::placeholders::_1));
+  vision_feature_sub_ = node->create_subscription<robocup_vision::msg::Robocupvisionfeature>(vision_feature_topic, 4, std::bind(&QNode::visionFeatureCallback, this, std::placeholders::_1));
+  ik_sub_ = node->create_subscription<humanoid_interfaces::msg::IkCoordMsg>(ik_topic, 1, std::bind(&QNode::ikCallback, this, std::placeholders::_1));
+  game_control_sub_ = node->create_subscription<gamecontroller::msg::Gamecontroldata>(game_control_topic, 5, std::bind(&QNode::gameControlCallback, this, std::placeholders::_1));
+  udp_sub_ = node->create_subscription<humanoid_interfaces::msg::Udp2master>(udp_topic, 5, std::bind(&QNode::udpCallback, this, std::placeholders::_1));
+  master_sub_ = node->create_subscription<humanoid_interfaces::msg::Master2localization>(master_topic, 5, std::bind(&QNode::masterCallback, this, std::placeholders::_1));
 
-  localization_pub_ = node->create_publisher<robocup_localization::msg::RobocupLocalization>(local_pub_topic, 10);
+  localization_pub_ = node->create_publisher<robocup_localization::msg::RobocupLocalization>(local_pub_topic, 5);
 
   // adult / kids different config
   robot_feature = node->get_parameter("robot_feature").as_string();
@@ -243,7 +243,11 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
   }
   vision_data_size += msg->cross_confidence.size();
 
-  if (!Likelihood.vision_point_vect.empty() && visionMSG.flag_pan == 0)
+  bool has_real_features = !msg->corner_confidence.empty() ||
+                           !msg->t_confidence.empty()      ||
+                           !msg->cross_confidence.empty();
+
+  if (has_real_features && !Likelihood.vision_point_vect.empty() && visionMSG.flag_pan == 0)
   {
     // RCLCPP_INFO(node->get_logger(),
     //   "[OBS] vect=%zu (L=%d T=%d X=%d) total_cnt=%d",
