@@ -71,7 +71,7 @@ public:
 
     // 한 번의 MATCHING에서 robot0 위치가 이동할 수 있는7 최소/최대 거리 (미터).
     // MIN_JUMP_PX 미만이면 진동 억제를 위해 업데이트 skip.
-    static constexpr double MIN_JUMP_M  = 0.08;
+    static constexpr double MIN_JUMP_M  = 0.07;
     static constexpr double MIN_JUMP_PX = MIN_JUMP_M * FieldCoord::PX_PER_M_X;
     static constexpr double MAX_JUMP_M  = 0.7;
     static constexpr double MAX_JUMP_PX = MAX_JUMP_M * FieldCoord::PX_PER_M_X;

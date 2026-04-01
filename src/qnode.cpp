@@ -85,7 +85,6 @@ void ROBOT::move(double Xmoved, double Ymoved)
     this->y = FieldCoord::toPixelY(-FieldCoord::B / 2);
 }
 
-
 /*****************************************************************************
 ** QNode
 *****************************************************************************/
@@ -125,6 +124,7 @@ QNode::QNode(int argc, char **argv)
   master_sub_ = node->create_subscription<humanoid_interfaces::msg::Master2localization>(master_topic, 5, std::bind(&QNode::masterCallback, this, std::placeholders::_1));
 
   localization_pub_ = node->create_publisher<robocup_localization::msg::RobocupLocalization>(local_pub_topic, 5);
+  pan_angle_comp_pub_ = node->create_publisher<robocup_vision::msg::PanAngleCompensation>("/pan_angle_compensation", 5);
 
   // adult / kids different config
   robot_feature = node->get_parameter("robot_feature").as_string();
@@ -153,6 +153,7 @@ void QNode::run()
   while (rclcpp::ok())
   {
     rclcpp::spin_some(node);
+    yaw_compensation();
     loop_rate.sleep();
   }
   rclcpp::shutdown();
@@ -176,13 +177,13 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
   for (int i = 0; i < (int)msg->corner_confidence.size(); i++)
   {
     vision_data_cnt += 1;
-    Likelihood.vision_point.CONFIDENCE   = msg->corner_confidence[i];
-    Likelihood.vision_point.DISTANCE     = msg->corner_distance[i];
-    Likelihood.vision_point.POINT_VEC_X  = (-1) * (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0_z) * M_PI / 180) + msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0_z) * M_PI / 180));
-    Likelihood.vision_point.POINT_VEC_Y  = (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0_z) * M_PI / 180) - msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0_z) * M_PI / 180));
-    Likelihood.vision_point.STD_X        = robot0_x;
-    Likelihood.vision_point.STD_Y        = robot0_y;
-    Likelihood.vision_point.FEATURE_TYPE = 0;  // L
+    Likelihood.vision_point.CONFIDENCE = msg->corner_confidence[i];
+    Likelihood.vision_point.DISTANCE = msg->corner_distance[i];
+    Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0_z)*M_PI / 180) + msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0_z)*M_PI / 180));
+    Likelihood.vision_point.POINT_VEC_Y = (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0_z)*M_PI / 180) - msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0_z)*M_PI / 180));
+    Likelihood.vision_point.STD_X = robot0_x;
+    Likelihood.vision_point.STD_Y = robot0_y;
+    Likelihood.vision_point.FEATURE_TYPE = 0; // L
     if (i < (int)msg->corner_ball_relative_angle.size())
       Likelihood.vision_point.BALL_RELATIVE_ANGLE = msg->corner_ball_relative_angle[i];
     else
@@ -199,13 +200,13 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
   for (int i = 0; i < (int)msg->t_confidence.size(); i++)
   {
     vision_data_cnt += 1;
-    Likelihood.vision_point.CONFIDENCE   = msg->t_confidence[i];
-    Likelihood.vision_point.DISTANCE     = msg->t_distance[i];
-    Likelihood.vision_point.POINT_VEC_X  = (-1) * (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0_z) * M_PI / 180) + msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0_z) * M_PI / 180));
-    Likelihood.vision_point.POINT_VEC_Y  = (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0_z) * M_PI / 180) - msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0_z) * M_PI / 180));
-    Likelihood.vision_point.STD_X        = robot0_x;
-    Likelihood.vision_point.STD_Y        = robot0_y;
-    Likelihood.vision_point.FEATURE_TYPE = 1;  // T
+    Likelihood.vision_point.CONFIDENCE = msg->t_confidence[i];
+    Likelihood.vision_point.DISTANCE = msg->t_distance[i];
+    Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0_z)*M_PI / 180) + msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0_z)*M_PI / 180));
+    Likelihood.vision_point.POINT_VEC_Y = (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0_z)*M_PI / 180) - msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0_z)*M_PI / 180));
+    Likelihood.vision_point.STD_X = robot0_x;
+    Likelihood.vision_point.STD_Y = robot0_y;
+    Likelihood.vision_point.FEATURE_TYPE = 1; // T
     if (i < (int)msg->t_ball_relative_angle.size())
       Likelihood.vision_point.BALL_RELATIVE_ANGLE = msg->t_ball_relative_angle[i];
     else
@@ -222,15 +223,14 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
   for (int i = 0; i < (int)msg->cross_confidence.size(); i++)
   {
     vision_data_cnt += 1;
-    Likelihood.vision_point.CONFIDENCE   = msg->cross_confidence[i];
-    Likelihood.vision_point.DISTANCE     = msg->cross_distance[i];
-    Likelihood.vision_point.POINT_VEC_X  = (-1) * (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0_z) * M_PI / 180) + msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0_z) * M_PI / 180));
-    Likelihood.vision_point.POINT_VEC_Y  = (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0_z) * M_PI / 180) - msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0_z) * M_PI / 180));
-    Likelihood.vision_point.STD_X        = robot0_x;
-    Likelihood.vision_point.STD_Y        = robot0_y;
-    Likelihood.vision_point.FEATURE_TYPE = 2;  // X
+    Likelihood.vision_point.CONFIDENCE = msg->cross_confidence[i];
+    Likelihood.vision_point.DISTANCE = msg->cross_distance[i];
+    Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0_z)*M_PI / 180) + msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0_z)*M_PI / 180));
+    Likelihood.vision_point.POINT_VEC_Y = (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0_z)*M_PI / 180) - msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0_z)*M_PI / 180));
+    Likelihood.vision_point.STD_X = robot0_x;
+    Likelihood.vision_point.STD_Y = robot0_y;
+    Likelihood.vision_point.FEATURE_TYPE = 2; // X
 
-    
     if (i < (int)msg->cross_ball_relative_angle.size())
       Likelihood.vision_point.BALL_RELATIVE_ANGLE = msg->cross_ball_relative_angle[i];
     else
@@ -244,7 +244,7 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
   vision_data_size += msg->cross_confidence.size();
 
   bool has_real_features = !msg->corner_confidence.empty() ||
-                           !msg->t_confidence.empty()      ||
+                           !msg->t_confidence.empty() ||
                            !msg->cross_confidence.empty();
 
   if (has_real_features && !Likelihood.vision_point_vect.empty() && visionMSG.flag_pan == 0)
@@ -264,6 +264,11 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
 void QNode::imuCallback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg)
 {
   std::lock_guard<std::mutex> lock(robot0_mutex);
+  if (imu_ignore_count_ > 0)
+  {
+    imu_ignore_count_--;
+    return;
+  }
   robot0.z = msg->yaw;
 }
 
@@ -301,6 +306,11 @@ void QNode::visionCallback(const robocup_vision::msg::Robocupvision::SharedPtr m
     set_ball_flag = 0;
   }
   vision_callback_timer = 0;
+
+  if (!msg->goal_post_pan_deg.empty())
+  {
+    goal_post_pan_deg_buf_ = msg->goal_post_pan_deg;
+  }
 }
 
 void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg)
@@ -329,7 +339,7 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
   }
 
   // 노이즈: 이동량에 비례 + 최소값 (튜닝 가능)
-  ik_motion     = sqrt(ik_dx * ik_dx + ik_dy * ik_dy);
+  ik_motion = sqrt(ik_dx * ik_dx + ik_dy * ik_dy);
   ik_noise_sigma = ik_motion * 0.2 + 1.0;
 
   for (int i = 0; i < particle_num; i++)
@@ -337,10 +347,14 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
     pt[i].x += ik_dx + Likelihood.gaussianRandom(0, ik_noise_sigma);
     pt[i].y += ik_dy + Likelihood.gaussianRandom(0, ik_noise_sigma);
     // 필드 경계 클램핑
-    if (pt[i].x < IK_PX_MIN_X) pt[i].x = IK_PX_MIN_X;
-    if (pt[i].x > IK_PX_MAX_X) pt[i].x = IK_PX_MAX_X;
-    if (pt[i].y < IK_PX_MIN_Y) pt[i].y = IK_PX_MIN_Y;
-    if (pt[i].y > IK_PX_MAX_Y) pt[i].y = IK_PX_MAX_Y;
+    if (pt[i].x < IK_PX_MIN_X)
+      pt[i].x = IK_PX_MIN_X;
+    if (pt[i].x > IK_PX_MAX_X)
+      pt[i].x = IK_PX_MAX_X;
+    if (pt[i].y < IK_PX_MIN_Y)
+      pt[i].y = IK_PX_MIN_Y;
+    if (pt[i].y > IK_PX_MAX_Y)
+      pt[i].y = IK_PX_MAX_Y;
   }
 }
 
@@ -460,4 +474,73 @@ void QNode::masterCallback(const humanoid_interfaces::msg::Master2localization::
 
   master_target_x = msg->targetx;
   master_target_y = msg->targety;
+}
+
+void QNode::yaw_compensation()
+{
+  if (goal_post_pan_deg_buf_.empty())
+  {
+    return;
+  }
+
+  if (yaw_correction_cooldown_ > 0)
+  {
+    yaw_correction_cooldown_--;
+    return;
+  }
+
+  float robot0_x, robot0_y, robot0_z;
+  {
+    std::lock_guard<std::mutex> lock(robot0_mutex);
+    robot0_x = robot0.x;
+    robot0_y = robot0.y;
+    robot0_z = robot0.z;
+  }
+
+  double rx_m = FieldCoord::toFieldX(robot0_x);
+  double ry_m = FieldCoord::toFieldY(robot0_y);
+
+  double best_corrected_yaw = 0.0;
+  double min_diff = 1e9;
+
+  const FieldCoord::FeaturePoint goal_posts[2] = {
+      FieldCoord::Left_Goalpost,
+      FieldCoord::Right_Goalpost};
+
+  for (int p = 0; p < (int)goal_post_pan_deg_buf_.size(); p++)
+  {
+    double pan_deg = goal_post_pan_deg_buf_[p];
+    for (int g = 0; g < 2; g++)
+    {
+      double gx = goal_posts[g].x;
+      double gy = goal_posts[g].y;
+      double expected_yaw = atan2(gx - rx_m, gy - ry_m) * 180.0 / M_PI;
+      double candidate_yaw = expected_yaw - pan_deg;
+      while (candidate_yaw > 180.0)
+        candidate_yaw -= 360.0;
+      while (candidate_yaw < -180.0)
+        candidate_yaw += 360.0;
+      double diff = fabs(candidate_yaw - robot0_z);
+      if (diff > 180.0)
+        diff = 360.0 - diff;
+      if (diff < min_diff)
+      {
+        min_diff = diff;
+        best_corrected_yaw = candidate_yaw;
+      }
+    }
+  }
+
+  if (min_diff > YAW_DRIFT_THRESHOLD_DEG)
+  {
+    robocup_vision::msg::PanAngleCompensation comp_msg;
+    comp_msg.target_yaw_deg = best_corrected_yaw;
+    pan_angle_comp_pub_->publish(comp_msg);
+    {
+      std::lock_guard<std::mutex> lock(robot0_mutex);
+      robot0.z = best_corrected_yaw;
+      imu_ignore_count_ = 20;
+    }
+    yaw_correction_cooldown_ = 100; // 5초 쿨다운
+  }
 }

@@ -26,6 +26,7 @@
 #include "humanoid_interfaces/msg/imu_msg.hpp"
 #include "robocup_vision/msg/robocupvision.hpp"
 #include "robocup_vision/msg/robocupvisionfeature.hpp"
+#include "robocup_vision/msg/pan_angle_compensation.hpp"
 #include "humanoid_interfaces/msg/ik_coord_msg.hpp"
 
 #include "robocup_localization/msg/robocup_localization.hpp"
@@ -124,7 +125,7 @@ public:
 
   // Thread safety: vision_point_vect 공유 보호
   std::mutex vision_mutex;
-  // Thread safety: robot0 공유 보호 (ROS 콜백 스레드 ↔ Qt 메인 스레드)
+  // Thread safety: robot0 공유 보호 (ROS 콜백 스레드 , Qt 메인 스레드)
   std::mutex robot0_mutex;
 
 protected:
@@ -140,6 +141,7 @@ private:
   void gameControlCallback(const gamecontroller::msg::Gamecontroldata::SharedPtr msg);
   void udpCallback(const humanoid_interfaces::msg::Udp2master::SharedPtr msg);
   void masterCallback(const humanoid_interfaces::msg::Master2localization::SharedPtr msg);
+  void yaw_compensation();
 
   rclcpp::Subscription<humanoid_interfaces::msg::ImuMsg>::SharedPtr imu_sub_;
   rclcpp::Subscription<robocup_vision::msg::Robocupvision>::SharedPtr vision_sub_;
@@ -148,6 +150,14 @@ private:
   rclcpp::Subscription<gamecontroller::msg::Gamecontroldata>::SharedPtr game_control_sub_;
   rclcpp::Subscription<humanoid_interfaces::msg::Udp2master>::SharedPtr udp_sub_;
   rclcpp::Subscription<humanoid_interfaces::msg::Master2localization>::SharedPtr master_sub_;
+
+  rclcpp::Publisher<robocup_vision::msg::PanAngleCompensation>::SharedPtr pan_angle_comp_pub_;
+
+  int yaw_correction_cooldown_ = 100;
+  int imu_ignore_count_ = 0;
+  std::vector<double> goal_post_pan_deg_buf_;
+  
+  static constexpr double YAW_DRIFT_THRESHOLD_DEG = 15.0;
 
   // ikCallback 작업 변수
   double ik_Xmoved, ik_Ymoved;

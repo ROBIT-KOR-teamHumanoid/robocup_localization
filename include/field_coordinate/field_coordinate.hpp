@@ -147,7 +147,7 @@ constexpr int ROW_BC = toPixelY(-H * 0.5); // 중앙 컬럼 하단 행 경계
 // 특징점 정의
 // ============================================================
 
-enum FeatureType { L_SHAPE, T_SHAPE, X_SHAPE, PENALTY_MARK };
+enum FeatureType { L_SHAPE, T_SHAPE, X_SHAPE, PENALTY_MARK, GOAL_POST };
 
 struct FeaturePoint
 {
@@ -205,8 +205,10 @@ constexpr FeaturePoint X02 = {  0, -J/2, X_SHAPE };
 constexpr FeaturePoint PM0 = { -A/2 + I_DIST, 0, X_SHAPE, false };  // 좌측 패널티마크
 constexpr FeaturePoint PM1 = {  A/2 - I_DIST, 0, X_SHAPE, false };  // 우측 패널티마크
 
+constexpr FeaturePoint  Left_Goalpost = { -A/2, 0, GOAL_POST, false };
+constexpr FeaturePoint Right_Goalpost = { A/2, 0, GOAL_POST, false };
 // 전체 특징점 배열 - 26개
-constexpr FeaturePoint ALL_POINTS[26] = {
+constexpr FeaturePoint ALL_POINTS[28] = {
   // ㄱ-shape (index 0~11)
   L00, L01, L02, L03, L04, L05, L06, L07, L08, L09, L10, L11,
   // T-shape  (index 12~21)
@@ -214,10 +216,12 @@ constexpr FeaturePoint ALL_POINTS[26] = {
   // X-shape  (index 22~23)
   X01, X02,
   // 페널티 마크 (index 24~25)
-  PM0, PM1
+  PM0, PM1,
+  // 골대 (index 26~27)
+  Left_Goalpost, Right_Goalpost
 };
 
-constexpr int FEATURE_POINT_COUNT = 26;
+constexpr int FEATURE_POINT_COUNT = 28;
 
 // ============================================================
 // 존별 랜드마크 인덱스 테이블 (compile-time 자동 생성)
