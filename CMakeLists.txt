@@ -50,7 +50,7 @@ qt5_add_resources(QT_RESOUCE_HPP ${PRO_RESOURCE_DIR})
 include_directories(
 	include/
 	${CMAKE_CURRENT_BINARY_DIR}
-	${CMAKE_CURRENT_SOURCE_DIR}/..   # robot_config.h 검색 경로
+	${CMAKE_CURRENT_SOURCE_DIR}   # robot_config.h 검색 경로
 )
 set(EXE_TARGET ${PROJECT_NAME}_bin)
 add_executable(${EXE_TARGET}
