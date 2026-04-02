@@ -108,10 +108,7 @@ public:
   BALL ball3 = BALL();
   BALL ball4 = BALL();
   Line_Feature Likelihood = Line_Feature();
-  OBSTACLE obstacle0 = OBSTACLE();
-  OBSTACLE obstacle1 = OBSTACLE();
-  OBSTACLE obstacle2 = OBSTACLE();
-  OBSTACLE obstacle3 = OBSTACLE();
+  std::vector<OBSTACLE> obstacles;
 
   // For gamecontrol
   GAMEMSG gameMSG;

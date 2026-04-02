@@ -252,103 +252,39 @@ void MainWindow::select_ball()
     qnode->ball4.d = 999999;
   }
 
-// qnode->visionMSG.ROBOT_VEC_X_size 해당 백터 콘테이너의 크기를 판별하여
-  // 크기만큼 obstacle 계산 ex) 콘테이너 크기 2 -> qnode->obstacle0,
-  // qnode->obstacle1 계산
-  if (qnode->visionMSG.ROBOT_VEC_X.size() > 0)
+  // ROBOT_VEC 크기에 맞게 obstacles 벡터 크기 조정
+  size_t vec_size = qnode->visionMSG.ROBOT_VEC_X.size();
+  if (qnode->obstacles.size() < vec_size)
   {
-    qnode->obstacle0.x =
-        qnode->robot0.x + (-1) * (qnode->visionMSG.ROBOT_VEC_X[0] * FieldCoord::MM2PX *
-                                      cos((qnode->robot0.z) * M_PI / 180) +
-                                  qnode->visionMSG.ROBOT_VEC_Y[0] * FieldCoord::MM2PX *
-                                      sin((qnode->robot0.z) * M_PI / 180));
-    qnode->obstacle0.y =
-        qnode->robot0.y + (qnode->visionMSG.ROBOT_VEC_X[0] * FieldCoord::MM2PX *
-                               sin((qnode->robot0.z) * M_PI / 180) -
-                           qnode->visionMSG.ROBOT_VEC_Y[0] * FieldCoord::MM2PX *
-                               cos((qnode->robot0.z) * M_PI / 180));
-    qnode->obstacle0.nocnt = 0;
+    qnode->obstacles.resize(vec_size);
   }
-  else
+
+  double yaw_rad = qnode->robot0.z * M_PI / 180;
+  for (size_t i = 0; i < qnode->obstacles.size(); i++)
   {
-    qnode->obstacle0.nocnt += 1;
-    if (qnode->obstacle0.nocnt > 20)
+    if (i < vec_size)
     {
-      qnode->obstacle0.nocnt = 20;
-      qnode->obstacle0.x = 0;
-      qnode->obstacle0.y = 0;
+      qnode->obstacles[i].x =
+          qnode->robot0.x + (-1) * (qnode->visionMSG.ROBOT_VEC_X[i] * FieldCoord::MM2PX *
+                                        cos(yaw_rad) +
+                                    qnode->visionMSG.ROBOT_VEC_Y[i] * FieldCoord::MM2PX *
+                                        sin(yaw_rad));
+      qnode->obstacles[i].y =
+          qnode->robot0.y + (qnode->visionMSG.ROBOT_VEC_X[i] * FieldCoord::MM2PX *
+                                 sin(yaw_rad) -
+                             qnode->visionMSG.ROBOT_VEC_Y[i] * FieldCoord::MM2PX *
+                                 cos(yaw_rad));
+      qnode->obstacles[i].nocnt = 0;
     }
-  }
-  if (qnode->visionMSG.ROBOT_VEC_X.size() > 1)
-  {
-    qnode->obstacle1.x =
-        qnode->robot0.x + (-1) * (qnode->visionMSG.ROBOT_VEC_X[1] * FieldCoord::MM2PX *
-                                      cos((qnode->robot0.z) * M_PI / 180) +
-                                  qnode->visionMSG.ROBOT_VEC_Y[1] * FieldCoord::MM2PX *
-                                      sin((qnode->robot0.z) * M_PI / 180));
-    qnode->obstacle1.y =
-        qnode->robot0.y + (qnode->visionMSG.ROBOT_VEC_X[1] * FieldCoord::MM2PX *
-                               sin((qnode->robot0.z) * M_PI / 180) -
-                           qnode->visionMSG.ROBOT_VEC_Y[1] * FieldCoord::MM2PX *
-                               cos((qnode->robot0.z) * M_PI / 180));
-    qnode->obstacle1.nocnt = 0;
-  }
-  else
-  {
-    qnode->obstacle1.nocnt += 1;
-    if (qnode->obstacle1.nocnt > 20)
+    else
     {
-      qnode->obstacle1.nocnt = 20;
-      qnode->obstacle1.x = 0;
-      qnode->obstacle1.y = 0;
-    }
-  }
-  if (qnode->visionMSG.ROBOT_VEC_X.size() > 2)
-  {
-    qnode->obstacle2.x =
-        qnode->robot0.x + (-1) * (qnode->visionMSG.ROBOT_VEC_X[2] * FieldCoord::MM2PX *
-                                      cos((qnode->robot0.z) * M_PI / 180) +
-                                  qnode->visionMSG.ROBOT_VEC_Y[2] * FieldCoord::MM2PX *
-                                      sin((qnode->robot0.z) * M_PI / 180));
-    qnode->obstacle2.y =
-        qnode->robot0.y + (qnode->visionMSG.ROBOT_VEC_X[2] * FieldCoord::MM2PX *
-                               sin((qnode->robot0.z) * M_PI / 180) -
-                           qnode->visionMSG.ROBOT_VEC_Y[2] * FieldCoord::MM2PX *
-                               cos((qnode->robot0.z) * M_PI / 180));
-    qnode->obstacle2.nocnt = 0;
-  }
-  else
-  {
-    qnode->obstacle2.nocnt += 1;
-    if (qnode->obstacle2.nocnt > 20)
-    {
-      qnode->obstacle2.nocnt = 20;
-      qnode->obstacle2.x = 0;
-      qnode->obstacle2.y = 0;
-    }
-  }
-  if (qnode->visionMSG.ROBOT_VEC_X.size() > 3)
-  {
-    qnode->obstacle3.x =
-        qnode->robot0.x + (-1) * (qnode->visionMSG.ROBOT_VEC_X[3] * FieldCoord::MM2PX *
-                                      cos((qnode->robot0.z) * M_PI / 180) +
-                                  qnode->visionMSG.ROBOT_VEC_Y[3] * FieldCoord::MM2PX *
-                                      sin((qnode->robot0.z) * M_PI / 180));
-    qnode->obstacle3.y =
-        qnode->robot0.y + (qnode->visionMSG.ROBOT_VEC_X[3] * FieldCoord::MM2PX *
-                               sin((qnode->robot0.z) * M_PI / 180) -
-                           qnode->visionMSG.ROBOT_VEC_Y[3] * FieldCoord::MM2PX *
-                               cos((qnode->robot0.z) * M_PI / 180));
-    qnode->obstacle3.nocnt = 0;
-  }
-  else
-  {
-    qnode->obstacle3.nocnt += 1;
-    if (qnode->obstacle3.nocnt > 20)
-    {
-      qnode->obstacle3.nocnt = 20;
-      qnode->obstacle3.x = 0;
-      qnode->obstacle3.y = 0;
+      qnode->obstacles[i].nocnt += 1;
+      if (qnode->obstacles[i].nocnt > 20)
+      {
+        qnode->obstacles[i].nocnt = 20;
+        qnode->obstacles[i].x = 0;
+        qnode->obstacles[i].y = 0;
+      }
     }
   }
 
@@ -463,14 +399,11 @@ void MainWindow::select_ball()
 
   clampX(qnode->ball.x);
   clampY(qnode->ball.y);
-  clampX(qnode->obstacle0.x);
-  clampY(qnode->obstacle0.y);
-  clampX(qnode->obstacle1.x);
-  clampY(qnode->obstacle1.y);
-  clampX(qnode->obstacle2.x);
-  clampY(qnode->obstacle2.y);
-  clampX(qnode->obstacle3.x);
-  clampY(qnode->obstacle3.y);
+  for (auto & obs : qnode->obstacles)
+  {
+    clampX(obs.x);
+    clampY(obs.y);
+  }
 }
 
 void MainWindow::setting()
@@ -563,14 +496,13 @@ void MainWindow::publish_msg()
       qnode->ball.y + qnode->ball.speed_y * qnode->visionMSG.Ball_speed_level;
   localizationMsg.robot_x = qnode->robot0.x;
   localizationMsg.robot_y = qnode->robot0.y;
-  localizationMsg.obstacle0_x = qnode->obstacle0.x;
-  localizationMsg.obstacle0_y = qnode->obstacle0.y;
-  localizationMsg.obstacle1_x = qnode->obstacle1.x;
-  localizationMsg.obstacle1_y = qnode->obstacle1.y;
-  localizationMsg.obstacle2_x = qnode->obstacle2.x;
-  localizationMsg.obstacle2_y = qnode->obstacle2.y;
-  localizationMsg.obstacle3_x = qnode->obstacle3.x;
-  localizationMsg.obstacle3_y = qnode->obstacle3.y;
+  localizationMsg.obstacles_x.clear();
+  localizationMsg.obstacles_y.clear();
+  for (const auto & obs : qnode->obstacles)
+  {
+    localizationMsg.obstacles_x.push_back(obs.x);
+    localizationMsg.obstacles_y.push_back(obs.y);
+  }
   qnode->localization_pub_->publish(localizationMsg);
 
   // 로컬 데이터 ui에 표시
@@ -645,29 +577,14 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
   targetlinePen.setWidth(2);
 
   // print obstacle
-  if (qnode->obstacle0.x != 0 && qnode->obstacle0.y != 0)
+  for (const auto & obs : qnode->obstacles)
   {
-    scene->addRect(cvt_Print_xy(qnode->obstacle0.x) - 5,
-                   cvt_Print_xy(qnode->obstacle0.y) - 5, 10, 10, blackPen,
-                   blackBrush);
-  }
-  if (qnode->obstacle1.x != 0 && qnode->obstacle1.y != 0)
-  {
-    scene->addRect(cvt_Print_xy(qnode->obstacle1.x) - 5,
-                   cvt_Print_xy(qnode->obstacle1.y) - 5, 10, 10, blackPen,
-                   blackBrush);
-  }
-  if (qnode->obstacle2.x != 0 && qnode->obstacle2.y != 0)
-  {
-    scene->addRect(cvt_Print_xy(qnode->obstacle2.x) - 5,
-                   cvt_Print_xy(qnode->obstacle2.y) - 5, 10, 10, blackPen,
-                   blackBrush);
-  }
-  if (qnode->obstacle3.x != 0 && qnode->obstacle3.y != 0)
-  {
-    scene->addRect(cvt_Print_xy(qnode->obstacle3.x) - 5,
-                   cvt_Print_xy(qnode->obstacle3.y) - 5, 10, 10, blackPen,
-                   blackBrush);
+    if (obs.x != 0 && obs.y != 0)
+    {
+      scene->addRect(cvt_Print_xy(obs.x) - 5,
+                     cvt_Print_xy(obs.y) - 5, 10, 10, blackPen,
+                     blackBrush);
+    }
   }
 
   // PRINT PARTICLE
