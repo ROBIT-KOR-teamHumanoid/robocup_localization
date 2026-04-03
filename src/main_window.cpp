@@ -21,6 +21,7 @@
 
 #include "robot_config.h"
 #include "../include/field_coordinate/field_coordinate.hpp"
+#include "../include/technical_challenge/technical_challenge.hpp"
 
 MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindowDesign)
@@ -35,7 +36,14 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
   // 데이터 업데이트 타이머
   m_DataTimer = new QTimer(this);
   connect(m_DataTimer, SIGNAL(timeout()), this, SLOT(main()));
-  m_DataTimer->start(50);
+  if (qnode->corner_kick_receiver_)
+  {
+    m_DataTimer->start(20);
+  }
+  else
+  {
+    m_DataTimer->start(50);
+  }
 
   // UI 업데이트 타이머
   m_screenTimer = new QTimer(this);
@@ -160,7 +168,32 @@ void MainWindow::main()
   // INIT
   setting();     // 공 선택 & 파라미터 불러오기 & UI에서 오도메트리 값 설정
   select_ball(); // UDP 통신에서 받은 다른 로봇의 공데이터로 공 위치 설정 & obstacle 위치 계산
-  publish_msg(); // 다른 노드로 데이터 publish
+
+  if (qnode->corner_kick_receiver_ && qnode->gameMSG.state == 7 && qnode->gameMSG.position == 3)
+  {
+    qnode->technical_challengeMSG.ball_in_approach =
+        technical_challenge::is_ball_in_approach_circle(
+            qnode->robot0.x, qnode->robot0.y,
+            qnode->ball.x,   qnode->ball.y,
+            qnode->robot0.z) ? 1 : 0;
+    qnode->publish_technical_challenge();
+  }
+
+  // 퍼블리시할 데이터를 localMSG에 채운 후 publish
+  qnode->localMSG.ball_x       = qnode->ball.x;
+  qnode->localMSG.ball_y       = qnode->ball.y;
+  qnode->localMSG.ball_speed_x = qnode->ball.x + qnode->ball.speed_x * qnode->visionMSG.Ball_speed_level;
+  qnode->localMSG.ball_speed_y = qnode->ball.y + qnode->ball.speed_y * qnode->visionMSG.Ball_speed_level;
+  qnode->localMSG.robot_x      = qnode->robot0.x;
+  qnode->localMSG.robot_y      = qnode->robot0.y;
+  qnode->localMSG.obstacles_x.clear();
+  qnode->localMSG.obstacles_y.clear();
+  for (const auto & obs : qnode->obstacles)
+  {
+    qnode->localMSG.obstacles_x.push_back(obs.x);
+    qnode->localMSG.obstacles_y.push_back(obs.y);
+  }
+  qnode->publish_localization();
 }
 
 void MainWindow::Print_Screen_Ball()
@@ -482,40 +515,6 @@ void MainWindow::setting()
   qnode->robot0.odom_ry = ui->odom_ry_value->value();
 }
 
-void MainWindow::publish_msg()
-{
-  // PRE CONDITION : ball_n, ball_speed_n, qnode->visionMSG.Ball_speed_level,
-  // qnode->robot0.n, obstacleX.n POST CONDITION : localizationMsg purpose :
-  // 다른 노드로 로컬 데이터를 전송 & 로컬 데이터 ui에 표시
-
-  localizationMsg.ball_x = qnode->ball.x;
-  localizationMsg.ball_y = qnode->ball.y;
-  localizationMsg.ball_speed_x =
-      qnode->ball.x + qnode->ball.speed_x * qnode->visionMSG.Ball_speed_level;
-  localizationMsg.ball_speed_y =
-      qnode->ball.y + qnode->ball.speed_y * qnode->visionMSG.Ball_speed_level;
-  localizationMsg.robot_x = qnode->robot0.x;
-  localizationMsg.robot_y = qnode->robot0.y;
-  localizationMsg.obstacles_x.clear();
-  localizationMsg.obstacles_y.clear();
-  for (const auto & obs : qnode->obstacles)
-  {
-    localizationMsg.obstacles_x.push_back(obs.x);
-    localizationMsg.obstacles_y.push_back(obs.y);
-  }
-  qnode->localization_pub_->publish(localizationMsg);
-
-  // 로컬 데이터 ui에 표시
-  char TEXT[256];
-  sprintf(TEXT, "BALL_X : %d", (int)localizationMsg.ball_x);
-  ui->BALL_X_value->setText(TEXT);
-  sprintf(TEXT, "BALL_Y : %d", (int)localizationMsg.ball_y);
-  ui->BALL_Y_value->setText(TEXT);
-  sprintf(TEXT, "ROBOT_X : %d", (int)localizationMsg.robot_x);
-  ui->ROBOT_X_value->setText(TEXT);
-  sprintf(TEXT, "ROBOT_Y : %d", (int)localizationMsg.robot_y);
-  ui->ROBOT_Y_value->setText(TEXT);
-}
 
 void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 50ms로 분리 
 {
@@ -530,6 +529,14 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
   }
 
   char TEXT[256];
+  sprintf(TEXT, "BALL_X : %d", (int)qnode->localMSG.ball_x);
+  ui->BALL_X_value->setText(TEXT);
+  sprintf(TEXT, "BALL_Y : %d", (int)qnode->localMSG.ball_y);
+  ui->BALL_Y_value->setText(TEXT);
+  sprintf(TEXT, "ROBOT_X : %d", (int)qnode->localMSG.robot_x);
+  ui->ROBOT_X_value->setText(TEXT);
+  sprintf(TEXT, "ROBOT_Y : %d", (int)qnode->localMSG.robot_y);
+  ui->ROBOT_Y_value->setText(TEXT);
   sprintf(TEXT, "IK_X : %d", (int)qnode->robot0.now_ik_param_x);
   ui->IK_X_value->setText(TEXT);
   sprintf(TEXT, "IK_Y : %d", (int)qnode->robot0.now_ik_param_y);
@@ -744,6 +751,15 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
           sin((-1) * qnode->robot0.z * DEG2RAD) * 10,
       cvt_Print_xy(qnode->robot0.y) - cos(qnode->robot0.z * DEG2RAD) * 10,
       blackPen3);
+
+  if (qnode->corner_kick_receiver_&& qnode-> gameMSG.state ==7 && qnode->gameMSG.position == 3)
+  {
+    technical_challenge::draw_approach_circle(
+        scene,
+        cvt_Print_xy(qnode->robot0.x),
+        cvt_Print_xy(qnode->robot0.y),
+        qnode->robot0.z);
+  }
 
   if (qnode->robot1.x != 0 || qnode->robot1.y != 0)
   {

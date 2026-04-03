@@ -71,7 +71,6 @@ public:
   ~MainWindow();
   QNode *qnode;
 
-  robocup_localization::msg::RobocupLocalization localizationMsg;
 
 
   // For timer
@@ -87,8 +86,6 @@ public:
   QPolygonF create_Print_robot(ROBOT robot);
   void Print_Screen_Ball();
 
-  // For Ros Topic
-  void publish_msg();
 
   // For UI
   int set_robot_flag = 0;

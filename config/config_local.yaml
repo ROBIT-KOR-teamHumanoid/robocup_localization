@@ -15,3 +15,9 @@
     particle_filter:
       weight_update_threshold: 30.0
       particle_nums: 8000
+      
+    setup_mode:
+      Soccer_mode : true 
+      
+      Technical_Challenge_mode : 
+        Corner_kick_receiver: false

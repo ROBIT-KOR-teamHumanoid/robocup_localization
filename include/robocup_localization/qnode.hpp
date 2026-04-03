@@ -30,9 +30,11 @@
 #include "humanoid_interfaces/msg/ik_coord_msg.hpp"
 
 #include "robocup_localization/msg/robocup_localization.hpp"
+#include "robocup_localization/msg/technical_challenge.hpp"
 #include "gamecontroller/msg/gamecontroldata.hpp"
 #include "humanoid_interfaces/msg/udp2master.hpp"
 #include "humanoid_interfaces/msg/master2localization.hpp"
+
 
 #include "../objects/robot.hpp"
 #include "../objects/obstacle.hpp"
@@ -41,6 +43,7 @@
 
 #define DEG2RAD (M_PI / 180)
 
+// ===== Subscribe =====
 struct VISIONMSG
 {
   int Ball_cam_X;
@@ -59,12 +62,64 @@ struct VISIONMSG
   int flag_pan;
 };
 
+struct IMUMSG
+{
+  float yaw = 0.0f;
+};
+
+struct IKMSG
+{
+  int x = 0;
+  int y = 0;
+};
+
+struct UDPMSG
+{
+  int robotnum = 0;
+  int robotcase = 0;
+  int localx = 0;
+  int localy = 0;
+  int localyaw = 0;
+  int ballx = 0;
+  int bally = 0;
+};
+
+struct MASTERMSG
+{
+  int targetx = 0;
+  int targety = 0;
+};
+
 struct GAMEMSG
 {
   int mySide = 1;
   int penalty = 0;
   int position = 0;
   int robotNum = 0;
+  int state = 0;
+};
+
+// ===== Publish =====
+struct LOCALMSG
+{
+  float ball_x = 0.0f;
+  float ball_y = 0.0f;
+  float ball_speed_x = 0.0f;
+  float ball_speed_y = 0.0f;
+  float robot_x = 0.0f;
+  float robot_y = 0.0f;
+  vector<float> obstacles_x;
+  vector<float> obstacles_y;
+};
+
+struct PANCOMPMSG
+{
+  float target_yaw_deg = 0.0f;
+};
+
+struct TechnicalChallengeMSG
+{
+  int ball_in_approach = 0;
 };
 
 /*****************************************************************************
@@ -78,6 +133,11 @@ public:
   ~QNode();
 
   rclcpp::Publisher<robocup_localization::msg::RobocupLocalization>::SharedPtr localization_pub_;
+  rclcpp::Publisher<robocup_localization::msg::TechnicalChallenge>::SharedPtr technical_challenge_pub_;
+
+  void publish_localization();
+  void publish_pan_comp();
+  void publish_technical_challenge();
 
   string robot_feature;
 
@@ -97,6 +157,12 @@ public:
 
   // For Objects
   VISIONMSG visionMSG;
+  IMUMSG imuMSG;
+  IKMSG ikMSG;
+  UDPMSG udpMSG;
+  MASTERMSG masterMSG;
+  LOCALMSG localMSG;
+  PANCOMPMSG panCompMSG;
   ROBOT robot0 = ROBOT();
   ROBOT robot1 = ROBOT();
   ROBOT robot2 = ROBOT();
@@ -112,13 +178,16 @@ public:
 
   // For gamecontrol
   GAMEMSG gameMSG;
+  TechnicalChallengeMSG technical_challengeMSG;
 
   // For particle
-  int particle_num = 8000;               // config: particle_nums
-  double weight_update_threshold = 14.0; // config: weight_update_threshold
+  int particle_num = 8000;
+  double weight_update_threshold = 14.0;
+  float particle_range = 0.0;
   std::vector<ROBOT> pt;
 
-  float particle_range = 0.0; // is 100
+  // For settings
+  bool corner_kick_receiver_ = false;
 
   // Thread safety: vision_point_vect 공유 보호
   std::mutex vision_mutex;
@@ -153,8 +222,8 @@ private:
   int yaw_correction_cooldown_ = 100;
   int imu_ignore_count_ = 0;
   std::vector<double> goal_post_pan_deg_buf_;
-  
-  static constexpr double YAW_DRIFT_THRESHOLD_DEG = 15.0;
+
+  static constexpr double YAW_DRIFT_THRESHOLD_DEG = 60.0;
 
   // ikCallback 작업 변수
   double ik_Xmoved, ik_Ymoved;

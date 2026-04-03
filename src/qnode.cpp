@@ -106,6 +106,7 @@ QNode::QNode(int argc, char **argv)
   node->declare_parameter("topic.local_pub_topic", "localization");
   node->declare_parameter("particle_filter.weight_update_threshold", 50.0);
   node->declare_parameter("particle_filter.particle_nums", particle_num);
+  node->declare_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver", false);
   auto imu_topic = node->get_parameter("topic.imu_sub_topic").as_string();
   auto vision_topic = node->get_parameter("topic.vision_sub_topic").as_string();
   auto vision_feature_topic = node->get_parameter("topic.vision_feature_sub_topic").as_string();
@@ -125,6 +126,7 @@ QNode::QNode(int argc, char **argv)
 
   localization_pub_ = node->create_publisher<robocup_localization::msg::RobocupLocalization>(local_pub_topic, 5);
   pan_angle_comp_pub_ = node->create_publisher<robocup_vision::msg::PanAngleCompensation>("/pan_angle_compensation", 5);
+  technical_challenge_pub_ = node->create_publisher<robocup_localization::msg::TechnicalChallenge>("/technical_challenge", 5);
 
   // adult / kids different config
   robot_feature = node->get_parameter("robot_feature").as_string();
@@ -132,6 +134,7 @@ QNode::QNode(int argc, char **argv)
   weight_update_threshold = node->get_parameter("particle_filter.weight_update_threshold").as_double();
   particle_num = node->get_parameter("particle_filter.particle_nums").as_int();
   pt.resize(particle_num);
+  corner_kick_receiver_ = node->get_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver").as_bool();
 
   if (robot_feature == "adult")
   {
@@ -149,7 +152,8 @@ QNode::~QNode()
 
 void QNode::run()
 {
-  rclcpp::WallRate loop_rate(20);
+  int loop_hz = corner_kick_receiver_ ? 50 : 20;
+  rclcpp::WallRate loop_rate(loop_hz);
   while (rclcpp::ok())
   {
     rclcpp::spin_some(node);
@@ -368,6 +372,7 @@ void QNode::gameControlCallback(const gamecontroller::msg::Gamecontroldata::Shar
   gameMSG.penalty = msg->penalty;
   gameMSG.position = msg->position;
   gameMSG.robotNum = msg->robotnum;
+  gameMSG.state = msg->state;
   if (gameMSG.penalty != 0)
   {
     std::lock_guard<std::mutex> robot0_lock(robot0_mutex);
@@ -533,9 +538,8 @@ void QNode::yaw_compensation()
 
   if (min_diff > YAW_DRIFT_THRESHOLD_DEG)
   {
-    robocup_vision::msg::PanAngleCompensation comp_msg;
-    comp_msg.target_yaw_deg = best_corrected_yaw;
-    pan_angle_comp_pub_->publish(comp_msg);
+    panCompMSG.target_yaw_deg = best_corrected_yaw;
+    publish_pan_comp();
     {
       std::lock_guard<std::mutex> lock(robot0_mutex);
       robot0.z = best_corrected_yaw;
@@ -543,4 +547,33 @@ void QNode::yaw_compensation()
     }
     yaw_correction_cooldown_ = 100; // 5초 쿨다운
   }
+   goal_post_pan_deg_buf_.clear();
+}
+
+void QNode::publish_localization()
+{
+  robocup_localization::msg::RobocupLocalization msg;
+  msg.ball_x       = localMSG.ball_x;
+  msg.ball_y       = localMSG.ball_y;
+  msg.ball_speed_x = localMSG.ball_speed_x;
+  msg.ball_speed_y = localMSG.ball_speed_y;
+  msg.robot_x      = localMSG.robot_x;
+  msg.robot_y      = localMSG.robot_y;
+  msg.obstacles_x.assign(localMSG.obstacles_x.begin(), localMSG.obstacles_x.end());
+  msg.obstacles_y.assign(localMSG.obstacles_y.begin(), localMSG.obstacles_y.end());
+  localization_pub_->publish(msg);
+}
+
+void QNode::publish_pan_comp()
+{
+  robocup_vision::msg::PanAngleCompensation msg;
+  msg.target_yaw_deg = panCompMSG.target_yaw_deg;
+  pan_angle_comp_pub_->publish(msg);
+}
+
+void QNode::publish_technical_challenge()
+{
+  robocup_localization::msg::TechnicalChallenge msg;
+  msg.ball_in_approach = technical_challengeMSG.ball_in_approach;
+  technical_challenge_pub_->publish(msg);
 }

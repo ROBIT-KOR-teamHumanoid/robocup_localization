@@ -23,6 +23,7 @@ find_package(ament_index_cpp REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RobocupLocalization.msg"
+  "msg/TechnicalChallenge.msg"
 )
 ament_export_dependencies(rosidl_default_runtime)
 
