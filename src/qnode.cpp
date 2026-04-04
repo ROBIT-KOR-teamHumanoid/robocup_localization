@@ -107,6 +107,7 @@ QNode::QNode(int argc, char **argv)
   node->declare_parameter("particle_filter.weight_update_threshold", 50.0);
   node->declare_parameter("particle_filter.particle_nums", particle_num);
   node->declare_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver", false);
+  node->declare_parameter("setup_mode.Technical_Challenge_mode.Local_helper", false);
   auto imu_topic = node->get_parameter("topic.imu_sub_topic").as_string();
   auto vision_topic = node->get_parameter("topic.vision_sub_topic").as_string();
   auto vision_feature_topic = node->get_parameter("topic.vision_feature_sub_topic").as_string();
@@ -135,6 +136,7 @@ QNode::QNode(int argc, char **argv)
   particle_num = node->get_parameter("particle_filter.particle_nums").as_int();
   pt.resize(particle_num);
   corner_kick_receiver_ = node->get_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver").as_bool();
+  local_helper_         = node->get_parameter("setup_mode.Technical_Challenge_mode.Local_helper").as_bool();
 
   if (robot_feature == "adult")
   {
@@ -251,7 +253,7 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
                            !msg->t_confidence.empty() ||
                            !msg->cross_confidence.empty();
 
-  if (has_real_features && !Likelihood.vision_point_vect.empty() && visionMSG.flag_pan == 0)
+  if (!local_helper_ && has_real_features && !Likelihood.vision_point_vect.empty() && visionMSG.flag_pan == 0)
   {
     // RCLCPP_INFO(node->get_logger(),
     //   "[OBS] vect=%zu (L=%d T=%d X=%d) total_cnt=%d",

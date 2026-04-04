@@ -21,3 +21,4 @@
       
       Technical_Challenge_mode : 
         Corner_kick_receiver: false
+        Local_helper: true

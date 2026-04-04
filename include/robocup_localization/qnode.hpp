@@ -188,6 +188,7 @@ public:
 
   // For settings
   bool corner_kick_receiver_ = false;
+  bool local_helper_ = false;
 
   // Thread safety: vision_point_vect 공유 보호
   std::mutex vision_mutex;
