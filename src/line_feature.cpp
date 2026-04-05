@@ -151,10 +151,13 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
 
 double Line_Feature::weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, vector<VISION_POINT> &vect)
 {
-    // !!!!!!!제일 중요한 부분!!!!!!!
     // PRE CONDITION : PT_X, PT_Y, ROBOT_X, ROBOT_Y, VECTOR<VISION_POINT> = VISION_POINT_VECT
     // POST CONDITION : weight
-    // PURPOSE : 가중치를 구하는 함수
+    // PURPOSE : Mahalanobis distance 기반 가중치 계산
+    //   D^2 = dn^2/sigma_n^2 + dp^2/sigma_p^2
+    //   dn: 파티클→랜드마크 방향 오차, dp: 수직 방향 오차
+    //   sigma = INV_*_VAR * dist_m + 0.05 (거리 비례 공분산)
+    //   weight += CONFIDENCE * exp(-0.5 * D^2)
 
     weight = 0.0;
 
@@ -164,16 +167,14 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, 
         pty = PT_Y + VisionPointUtils::worldY(vect[i]) - NOW_Y;
 
         min_dis = LARGE_DIST;
+        best_j  = -1;
 
-        // 관측 방향 (세계 좌표계, POINT_VEC은 이미 yaw 변환됨)
         obs_angle = VisionPointUtils::bearing(vect[i]);
 
-        // 공 기준 관측 각도 (필드 좌표계)
         double obs_feat_field_x = VisionPointUtils::worldX(vect[i]);
         double obs_feat_field_y = VisionPointUtils::worldY(vect[i]);
         double obs_ball_angle   = atan2(obs_feat_field_y - ball_field_px_y,
                                         obs_feat_field_x - ball_field_px_x);
-
         double best_ball_angle_diff = LARGE_DIST;
 
         for (int j = 0; j < FieldCoord::FEATURE_POINT_COUNT; j++)
@@ -183,7 +184,6 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, 
             if (FieldCoord::ALL_POINTS[j].type != (FieldCoord::FeatureType)vect[i].FEATURE_TYPE)
                 continue;
 
-            // bearing 필터
             exp_angle = atan2(filter.Local_point_y[j] - PT_Y, filter.Local_point_x[j] - PT_X);
             if (!Filter::passBearing(obs_angle, exp_angle))
                 continue;
@@ -192,7 +192,6 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, 
             double dy_m = (filter.Local_point_y[j] - pty) / FieldCoord::PX_PER_M_Y;
             double dis  = sqrt(dx_m * dx_m + dy_m * dy_m);
 
-            // L_SHAPE: 거리 차이가 L_DIST_GATE_M 초과이면 skip
             if ((FieldCoord::FeatureType)vect[i].FEATURE_TYPE == FieldCoord::L_SHAPE)
             {
                 double actual_dist_m = sqrt(pow((filter.Local_point_x[j] - PT_X) / FieldCoord::PX_PER_M_X, 2)
@@ -204,7 +203,6 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, 
 
             if (ball_visible)
             {
-                // 공 기준 각도가 가장 잘 맞는 랜드마크 선택
                 double exp_ball_angle = atan2(filter.Local_point_y[j] - ball_field_px_y,
                                               filter.Local_point_x[j] - ball_field_px_x);
                 double ball_angle_diff = fabs(obs_ball_angle - exp_ball_angle);
@@ -215,20 +213,48 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, 
                 {
                     best_ball_angle_diff = ball_angle_diff;
                     min_dis = dis;
+                    best_j  = j;
                 }
             }
             else
             {
-                // 기존 방식 (최소 거리)
                 if (dis < min_dis)
+                {
                     min_dis = dis;
+                    best_j  = j;
+                }
             }
         }
 
-        if (min_dis <= MIN_DIS_CLAMP)
-            min_dis = MIN_DIS_CLAMP;
+        // 매칭된 랜드마크 없으면 skip
+        if (best_j < 0)
+            continue;
 
-        weight += (WEIGHT_SCALE / min_dis) * vect[i].CONFIDENCE * abs(1 - vect[i].DISTANCE / DIST_NORM);
+        // ── Mahalanobis distance 계산 ──────────────────────────────
+        // 오차 벡터: 관측 추정 위치 - 실제 랜드마크 위치 (픽셀)
+        double err_x_px = ptx - filter.Local_point_x[best_j];
+        double err_y_px = pty - filter.Local_point_y[best_j];
+
+        // 파티클 → 랜드마크 방향 단위벡터
+        double vx      = filter.Local_point_x[best_j] - PT_X;
+        double vy      = filter.Local_point_y[best_j] - PT_Y;
+        double dist_px = max(1e-6, sqrt(vx * vx + vy * vy));
+        double ux      = vx / dist_px;
+        double uy      = vy / dist_px;
+
+        // normal(dn): 방향 따라, perp(dp): 수직
+        double dn_m = (ux * err_x_px + uy * err_y_px) / FieldCoord::PX_PER_M_X;
+        double dp_m = (-uy * err_x_px + ux * err_y_px) / FieldCoord::PX_PER_M_X;
+
+        // 거리 비례 표준편차 (sigma_min = 0.05m)
+        double dist_m   = dist_px / FieldCoord::PX_PER_M_X;
+        double sigma_n  = INV_NORM_VAR * dist_m + 0.05;
+        double sigma_p  = INV_PERP_VAR * dist_m + 0.05;
+
+        double D2       = (dn_m * dn_m) / (sigma_n * sigma_n) + (dp_m * dp_m) / (sigma_p * sigma_p);
+        double likelihood = exp(-0.5 * D2);
+
+        weight += vect[i].CONFIDENCE * likelihood;
     }
     return weight;
 }

@@ -48,11 +48,10 @@ public:
     QTextEdit *textEdit = new QTextEdit(this);
     textEdit->setGeometry(200, 320, 231, 41);
     textEdit->setHtml(
-      "<html><head><style>p, li { white-space: pre-wrap; }</style></head>"
-      "<body style=\" font-family:'Ubuntu'; font-size:11pt;\">"
-      "<p align=\"center\">please put the manual of this App in this page</p>"
-      "</body></html>"
-    );
+        "<html><head><style>p, li { white-space: pre-wrap; }</style></head>"
+        "<body style=\" font-family:'Ubuntu'; font-size:11pt;\">"
+        "<p align=\"center\">please put the manual of this App in this page</p>"
+        "</body></html>");
   }
 };
 
@@ -71,8 +70,6 @@ public:
   ~MainWindow();
   QNode *qnode;
 
-
-
   // For timer
   QTimer *m_Timer;
   QTimer *m_DataTimer;
@@ -86,12 +83,11 @@ public:
   QPolygonF create_Print_robot(ROBOT robot);
   void Print_Screen_Ball();
 
-
   // For UI
   int set_robot_flag = 0;
   int setting_flag = 0;
   float adult_ui_size_cali = 0.0; // 어덜트 맵 크기에 따른 ui 사이즈 보정값
-  float particle_range = 0.0; // is 100
+  float particle_range = 0.0;     // is 100
 
   void setting();
 
@@ -116,6 +112,8 @@ public slots:
   void on_btn_set_4_clicked();
   void on_btn_set_5_clicked();
   void on_btn_set_6_clicked();
+  void on_btn_set_7_clicked();
+  void on_btn_set_8_clicked();
   void on_btn_set_auto_clicked();
   void on_btn_ball_set_clicked();
   void on_btn_ball_del_clicked();

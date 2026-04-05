@@ -67,12 +67,12 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
 
     // 외곽 경계선
     p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2),
-               FieldCoord::toPixelY( FieldCoord::B / 2),
+               FieldCoord::toPixelY(FieldCoord::B / 2),
                (int)(FieldCoord::A * FieldCoord::PX_PER_M_X),
                (int)(FieldCoord::B * FieldCoord::PX_PER_M_Y));
 
     // 하프라인
-    p.drawLine(FieldCoord::toPixelX(0), FieldCoord::toPixelY( FieldCoord::B / 2),
+    p.drawLine(FieldCoord::toPixelX(0), FieldCoord::toPixelY(FieldCoord::B / 2),
                FieldCoord::toPixelX(0), FieldCoord::toPixelY(-FieldCoord::B / 2));
 
     // 센터 서클 (J = 지름)
@@ -85,15 +85,15 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
     int goal_w = (int)(FieldCoord::C * FieldCoord::PX_PER_M_X);
     int goal_h = (int)(FieldCoord::D * FieldCoord::PX_PER_M_Y);
     p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2) - goal_w,
-               FieldCoord::toPixelY( FieldCoord::D / 2),
+               FieldCoord::toPixelY(FieldCoord::D / 2),
                goal_w, goal_h);
-    p.drawRect(FieldCoord::toPixelX( FieldCoord::A / 2),
-               FieldCoord::toPixelY( FieldCoord::D / 2),
+    p.drawRect(FieldCoord::toPixelX(FieldCoord::A / 2),
+               FieldCoord::toPixelY(FieldCoord::D / 2),
                goal_w, goal_h);
 
     // 좌측 골 에어리어
     p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2),
-               FieldCoord::toPixelY( FieldCoord::F / 2),
+               FieldCoord::toPixelY(FieldCoord::F / 2),
                (int)(FieldCoord::E * FieldCoord::PX_PER_M_X),
                (int)(FieldCoord::F * FieldCoord::PX_PER_M_Y));
 
@@ -105,7 +105,7 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
 
     // 좌측 페널티 에어리어
     p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2),
-               FieldCoord::toPixelY( FieldCoord::H / 2),
+               FieldCoord::toPixelY(FieldCoord::H / 2),
                (int)(FieldCoord::G * FieldCoord::PX_PER_M_X),
                (int)(FieldCoord::H * FieldCoord::PX_PER_M_Y));
 
@@ -141,15 +141,15 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
     // 코너 아크 (L_ARC > 0인 경우만)
     if (FieldCoord::L_ARC > 0.0)
     {
-      int r   = (int)(FieldCoord::L_ARC * FieldCoord::PX_PER_M_X);
+      int r = (int)(FieldCoord::L_ARC * FieldCoord::PX_PER_M_X);
       int x_l = FieldCoord::toPixelX(-FieldCoord::A / 2);
-      int x_r = FieldCoord::toPixelX( FieldCoord::A / 2);
-      int y_t = FieldCoord::toPixelY( FieldCoord::B / 2);
+      int x_r = FieldCoord::toPixelX(FieldCoord::A / 2);
+      int y_t = FieldCoord::toPixelY(FieldCoord::B / 2);
       int y_b = FieldCoord::toPixelY(-FieldCoord::B / 2);
-      p.drawArc(x_l - r, y_t - r, 2 * r, 2 * r, 270 * 16,  90 * 16);  // 좌상단
-      p.drawArc(x_r - r, y_t - r, 2 * r, 2 * r, 180 * 16,  90 * 16);  // 우상단
-      p.drawArc(x_l - r, y_b - r, 2 * r, 2 * r,   0 * 16,  90 * 16);  // 좌하단
-      p.drawArc(x_r - r, y_b - r, 2 * r, 2 * r,  90 * 16,  90 * 16);  // 우하단
+      p.drawArc(x_l - r, y_t - r, 2 * r, 2 * r, 270 * 16, 90 * 16); // 좌상단
+      p.drawArc(x_r - r, y_t - r, 2 * r, 2 * r, 180 * 16, 90 * 16); // 우상단
+      p.drawArc(x_l - r, y_b - r, 2 * r, 2 * r, 0 * 16, 90 * 16);   // 좌하단
+      p.drawArc(x_r - r, y_b - r, 2 * r, 2 * r, 90 * 16, 90 * 16);  // 우하단
     }
 
     p.end();
@@ -174,21 +174,28 @@ void MainWindow::main()
     qnode->technical_challengeMSG.ball_in_approach =
         technical_challenge::is_ball_in_approach_circle(
             qnode->robot0.x, qnode->robot0.y,
-            qnode->ball.x,   qnode->ball.y,
-            qnode->robot0.z) ? 1 : 0;
+            qnode->ball.x, qnode->ball.y,
+            qnode->robot0.z)
+            ? 1
+            : 0;
+    qnode->publish_technical_challenge();
+  }
+
+  if (qnode->local_helper_)
+  {
     qnode->publish_technical_challenge();
   }
 
   // 퍼블리시할 데이터를 localMSG에 채운 후 publish
-  qnode->localMSG.ball_x       = qnode->ball.x;
-  qnode->localMSG.ball_y       = qnode->ball.y;
+  qnode->localMSG.ball_x = qnode->ball.x;
+  qnode->localMSG.ball_y = qnode->ball.y;
   qnode->localMSG.ball_speed_x = qnode->ball.x + qnode->ball.speed_x * qnode->visionMSG.Ball_speed_level;
   qnode->localMSG.ball_speed_y = qnode->ball.y + qnode->ball.speed_y * qnode->visionMSG.Ball_speed_level;
-  qnode->localMSG.robot_x      = qnode->robot0.x;
-  qnode->localMSG.robot_y      = qnode->robot0.y;
+  qnode->localMSG.robot_x = qnode->robot0.x;
+  qnode->localMSG.robot_y = qnode->robot0.y;
   qnode->localMSG.obstacles_x.clear();
   qnode->localMSG.obstacles_y.clear();
-  for (const auto & obs : qnode->obstacles)
+  for (const auto &obs : qnode->obstacles)
   {
     qnode->localMSG.obstacles_x.push_back(obs.x);
     qnode->localMSG.obstacles_y.push_back(obs.y);
@@ -432,7 +439,7 @@ void MainWindow::select_ball()
 
   clampX(qnode->ball.x);
   clampY(qnode->ball.y);
-  for (auto & obs : qnode->obstacles)
+  for (auto &obs : qnode->obstacles)
   {
     clampX(obs.x);
     clampY(obs.y);
@@ -515,8 +522,7 @@ void MainWindow::setting()
   qnode->robot0.odom_ry = ui->odom_ry_value->value();
 }
 
-
-void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 50ms로 분리 
+void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 50ms로 분리
 {
   // PRE CONDITION : robotX.n, obstacleX.n, qnode->ball.n, qnode->Likelihood
   // POST CONDITION : UI
@@ -584,7 +590,7 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
   targetlinePen.setWidth(2);
 
   // print obstacle
-  for (const auto & obs : qnode->obstacles)
+  for (const auto &obs : qnode->obstacles)
   {
     if (obs.x != 0 && obs.y != 0)
     {
@@ -752,7 +758,7 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
       cvt_Print_xy(qnode->robot0.y) - cos(qnode->robot0.z * DEG2RAD) * 10,
       blackPen3);
 
-  if (qnode->corner_kick_receiver_&& qnode-> gameMSG.state ==7 && qnode->gameMSG.position == 3)
+  if (qnode->corner_kick_receiver_ && qnode->gameMSG.state == 7 && qnode->gameMSG.position == 3)
   {
     technical_challenge::draw_approach_circle(
         scene,
@@ -852,9 +858,9 @@ void MainWindow::mouseReleaseEvent(QMouseEvent *e)
     qnode->robot0.x = scenePos.x();
     qnode->robot0.y = scenePos.y();
     for (int i = 0; i < qnode->particle_num; i++)
-    {   
+    {
       qnode->Likelihood.random_point(qnode->pt[i], qnode->robot0.x, qnode->robot0.y,
-                                particle_range);
+                                     particle_range);
     }
     set_robot_flag = 0;
     qnode->robot0.TIME_STAMP.clear();
@@ -1064,6 +1070,23 @@ void MainWindow::on_btn_set_6_clicked()
   else
     setRobotPos(qnode, toPixelX(-0.8), toPixelY(-B / 2), particle_range);
 }
+
+void MainWindow::on_btn_set_7_clicked()
+{
+  using namespace FieldCoord;
+  qnode->robot0.z = -90.0;
+  qnode->local_helper_dir = 0;
+  setRobotPos(qnode, toPixelX(-A / 2), toPixelY(F / 2 + (H - F) / 4), 0);
+}
+
+void MainWindow::on_btn_set_8_clicked()
+{
+  using namespace FieldCoord;
+  qnode->robot0.z = 90.0;
+  qnode->local_helper_dir = 1;
+  setRobotPos(qnode, toPixelX(A / 2), toPixelY(-F / 2 - (H - F) / 4), 0);
+}
+
 void MainWindow::on_btn_set_auto_clicked()
 {
   // PRE CONDITION : UI

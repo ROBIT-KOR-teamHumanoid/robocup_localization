@@ -40,26 +40,27 @@
 #include "../objects/obstacle.hpp"
 #include "../objects/ball.hpp"
 #include "../objects/line_feature.hpp"
+#include "../technical_challenge/colaborate_localization.hpp"
 
 #define DEG2RAD (M_PI / 180)
 
 // ===== Subscribe =====
 struct VISIONMSG
 {
-  int Ball_cam_X;
-  int Ball_cam_Y;
-  float Ball_2d_X;
-  float Ball_2d_Y;
-  float Ball_D;
-  float PAN;
-  float TILT;
-  float Ball_speed_X;
-  float Ball_speed_Y;
+  int Ball_cam_X = 0;
+  int Ball_cam_Y = 0;
+  float Ball_2d_X = 0.0f;
+  float Ball_2d_Y = 0.0f;
+  float Ball_D = 0.0f;
+  float PAN = 0.0f;
+  float TILT = 0.0f;
+  float Ball_speed_X = 0.0f;
+  float Ball_speed_Y = 0.0f;
   vector<float> ROBOT_VEC_X;
   vector<float> ROBOT_VEC_Y;
-  int Ball_speed_level;
-  int Scan_mode;
-  int flag_pan;
+  int Ball_speed_level = 0;
+  int Scan_mode = 0;
+  int flag_pan = 0;
 };
 
 struct IMUMSG
@@ -120,6 +121,8 @@ struct PANCOMPMSG
 struct TechnicalChallengeMSG
 {
   int ball_in_approach = 0;
+  double blind_robot_x = 0.0;
+  double blind_robot_y = 0.0;
 };
 
 /*****************************************************************************
@@ -189,6 +192,7 @@ public:
   // For settings
   bool corner_kick_receiver_ = false;
   bool local_helper_ = false;
+  int local_helper_dir = 0; // 0: left, 1: right
 
   // Thread safety: vision_point_vect 공유 보호
   std::mutex vision_mutex;
@@ -230,7 +234,18 @@ private:
   double ik_Xmoved, ik_Ymoved;
   double ik_prev_x, ik_prev_y;
   double ik_dx, ik_dy;
-  double ik_motion, ik_noise_sigma;
+  double ik_rot1, ik_trans;
+  double ik_rot1_dev, ik_trans_dev;
+
+  // rot1/trans/rot2 모션 모델 alpha 계수 (튜닝 가능)
+  // alpha1: rot 노이즈 ← rot 크기
+  // alpha2: rot 노이즈 ← trans 크기
+  // alpha3: trans 노이즈 ← trans 크기
+  // alpha4: trans 노이즈 ← rot 크기
+  static constexpr double ALPHA1 = 0.05;
+  static constexpr double ALPHA2 = 0.01;
+  static constexpr double ALPHA3 = 0.15;
+  static constexpr double ALPHA4 = 0.05;
   static constexpr double IK_PX_MIN_X = FieldCoord::toPixelX(-FieldCoord::A / 2);
   static constexpr double IK_PX_MAX_X = FieldCoord::toPixelX(FieldCoord::A / 2);
   static constexpr double IK_PX_MIN_Y = FieldCoord::toPixelY(FieldCoord::B / 2);

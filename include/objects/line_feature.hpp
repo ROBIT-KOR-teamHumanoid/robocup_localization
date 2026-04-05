@@ -50,21 +50,20 @@ public:
     Line_Feature() {}
 
     // weight_calculate() 튜닝 파라미터
-    // weight 공식: weight += (WEIGHT_SCALE / min_dis) * CONFIDENCE * abs(1 - DISTANCE / DIST_NORM)
+    // weight 공식: Mahalanobis distance 기반
+    //   D^2 = dn^2/sigma_n^2 + dp^2/sigma_p^2
+    //   weight += CONFIDENCE * exp(-0.5 * D^2)
+    //   dn: 파티클→랜드마크 방향 오차(normal), dp: 수직 방향 오차(perp)
+    //   sigma = INV_*_VAR * dist_m + 0.05 (거리에 비례해서 커짐)
 
     // min_dis 초기값. 파티클별로 가장 가까운 랜드마크를 찾기 전 비교 기준값 (사실상 무한대)
     static constexpr double LARGE_DIST = 99999999.0;
 
-    // min_dis 최솟값 클램프 (미터). 파티클 추정 위치와 실제 랜드마크 간 거리의 하한선.
-    // 너무 작으면 완벽히 일치하는 파티클 하나가 weight를 독점함.
-    // 너무 크면 위치 오차가 커도 동일한 최대 weight → 정밀도 저하.
-    static constexpr double MIN_DIS_CLAMP = 0.1;
+    // normal 방향 분산 계수 (거리 비례). 클수록 normal 오차에 관대해짐.
+    static constexpr double INV_NORM_VAR = 0.1;
 
-    // weight 분자 스케일. 전체 weight 크기를 결정하며 weight_update_threshold와 함께 조정.
-    static constexpr double WEIGHT_SCALE = 0.6;
-
-    // 특징점까지 거리(mm) 정규화 분모. 멀리 있는 특징점일수록 weight를 줄이는 계수.
-    static constexpr double DIST_NORM = 15000.0;
+    // perp 방향 분산 계수. INV_NORM_VAR보다 크게 설정 → 수직 오차에 더 관대.
+    static constexpr double INV_PERP_VAR = 0.2;
 
     // L_SHAPE 거리 매칭 게이트 (미터). 관측 거리와 실제 거리 차이가 이 값 초과이면 랜드마크 skip.
     static constexpr double L_DIST_GATE_M = 0.5;
@@ -99,6 +98,7 @@ private:
     // weight_calculate 작업 변수
     double weight;
     double min_dis;
+    int    best_j;
     int ptx, pty;
     double obs_angle;
     double exp_angle;

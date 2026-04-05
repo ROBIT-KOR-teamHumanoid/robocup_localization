@@ -275,7 +275,23 @@ void QNode::imuCallback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg)
     imu_ignore_count_--;
     return;
   }
-  robot0.z = msg->yaw;
+
+  if(local_helper_)  {
+    
+    switch(local_helper_dir){
+      case 0: 
+       robot0.z = -90.0;
+       break;
+      
+      case 1: 
+        robot0.z = 90.0;
+        break; 
+
+    }
+
+    return;
+  }
+  else robot0.z = msg->yaw;
 }
 
 void QNode::visionCallback(const robocup_vision::msg::Robocupvision::SharedPtr msg)
@@ -317,6 +333,22 @@ void QNode::visionCallback(const robocup_vision::msg::Robocupvision::SharedPtr m
   {
     goal_post_pan_deg_buf_ = msg->goal_post_pan_deg;
   }
+
+  if (local_helper_ && !visionMSG.ROBOT_VEC_X.empty())
+  {
+    float robot0_x, robot0_y, robot0_z;
+    {
+      std::lock_guard<std::mutex> lock(robot0_mutex);
+      robot0_x = robot0.x;
+      robot0_y = robot0.y;
+      robot0_z = robot0.z;
+    }
+    colaborate_localization::computeBlindRobotCoord(
+        visionMSG.ROBOT_VEC_X[0], visionMSG.ROBOT_VEC_Y[0],
+        robot0_x, robot0_y, robot0_z,
+        technical_challengeMSG.blind_robot_x,
+        technical_challengeMSG.blind_robot_y);
+  }
 }
 
 void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg)
@@ -344,23 +376,53 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
     ik_dy = robot0.y - ik_prev_y;
   }
 
-  // 노이즈: 이동량에 비례 + 최소값 (튜닝 가능)
-  ik_motion = sqrt(ik_dx * ik_dx + ik_dy * ik_dy);
-  ik_noise_sigma = ik_motion * 0.2 + 1.0;
+  // rot1/trans/rot2 모션 모델
+  // ik_rot1  : robot-frame에서 이동 방향 (전진=0, 좌측=+90도)
+  // ik_trans : world-frame 이동 거리 (픽셀)
+  // rot2는 yaw를 IMU에서 별도 처리하므로 0으로 가정
+  ik_trans = sqrt(ik_dx * ik_dx + ik_dy * ik_dy);
 
-  for (int i = 0; i < particle_num; i++)
+  if (ik_trans < 0.1)
   {
-    pt[i].x += ik_dx + Likelihood.gaussianRandom(0, ik_noise_sigma);
-    pt[i].y += ik_dy + Likelihood.gaussianRandom(0, ik_noise_sigma);
-    // 필드 경계 클램핑
-    if (pt[i].x < IK_PX_MIN_X)
-      pt[i].x = IK_PX_MIN_X;
-    if (pt[i].x > IK_PX_MAX_X)
-      pt[i].x = IK_PX_MAX_X;
-    if (pt[i].y < IK_PX_MIN_Y)
-      pt[i].y = IK_PX_MIN_Y;
-    if (pt[i].y > IK_PX_MAX_Y)
-      pt[i].y = IK_PX_MAX_Y;
+    // 이동 없음 — 미세 확산 노이즈만 적용
+    for (int i = 0; i < particle_num; i++)
+    {
+      pt[i].x += Likelihood.gaussianRandom(0, 0.5);
+      pt[i].y += Likelihood.gaussianRandom(0, 0.5);
+    }
+  }
+  else
+  {
+    // robot-frame 이동 방향 (IK 원본 단위 비율로 계산)
+    ik_rot1 = atan2(ik_Ymoved, ik_Xmoved);
+
+    // alpha 비례 노이즈 표준편차
+    // - trans 방향 노이즈: 이동량 + 회전량에 비례
+    // - 방향(rot) 노이즈: 회전량 + 이동량에 비례
+    ik_trans_dev = ALPHA3 * ik_trans + ALPHA4 * fabs(ik_rot1);
+    ik_rot1_dev  = ALPHA1 * fabs(ik_rot1) + ALPHA2 * ik_trans;
+
+    // world-frame 이동 방향
+    double world_dir = atan2(ik_dy, ik_dx);
+
+    for (int i = 0; i < particle_num; i++)
+    {
+      double n_trans = ik_trans + Likelihood.gaussianRandom(0, ik_trans_dev);
+      double n_dir   = world_dir + Likelihood.gaussianRandom(0, ik_rot1_dev);
+
+      pt[i].x += n_trans * cos(n_dir);
+      pt[i].y += n_trans * sin(n_dir);
+
+      // 필드 경계 클램핑
+      if (pt[i].x < IK_PX_MIN_X)
+        pt[i].x = IK_PX_MIN_X;
+      if (pt[i].x > IK_PX_MAX_X)
+        pt[i].x = IK_PX_MAX_X;
+      if (pt[i].y < IK_PX_MIN_Y)
+        pt[i].y = IK_PX_MIN_Y;
+      if (pt[i].y > IK_PX_MAX_Y)
+        pt[i].y = IK_PX_MAX_Y;
+    }
   }
 }
 
@@ -478,9 +540,9 @@ void QNode::masterCallback(const humanoid_interfaces::msg::Master2localization::
   // PRE CONDITION : msg(master)
   // POST CONDITION : master_target_N
   // purpose : 마스터에서 받은 타겟 좌표 데이터 적용
-
+  
   master_target_x = msg->targetx;
-  master_target_y = msg->targety;
+  master_target_y = msg->targety; // 시각화 용임. 로직에서는 안 쓰임
 }
 
 void QNode::yaw_compensation()
@@ -577,5 +639,7 @@ void QNode::publish_technical_challenge()
 {
   robocup_localization::msg::TechnicalChallenge msg;
   msg.ball_in_approach = technical_challengeMSG.ball_in_approach;
+  msg.blind_robot_x    = technical_challengeMSG.blind_robot_x;
+  msg.blind_robot_y    = technical_challengeMSG.blind_robot_y;
   technical_challenge_pub_->publish(msg);
 }
