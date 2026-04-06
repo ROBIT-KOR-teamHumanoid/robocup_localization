@@ -37,7 +37,7 @@ class Line_Feature
 {
 public:
     void featureCalc(QNode *qnode, double particle_range);
-    double weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, vector<VISION_POINT> &vect);
+    double weight_calculate(int PT_X, int PT_Y, float PT_Z, int NOW_X, int NOW_Y, vector<VISION_POINT> &vect);
 
     static double gaussianRandom(double average, double stdev);
     static void random_point(ROBOT &robot, int x, int y, float particle_range);

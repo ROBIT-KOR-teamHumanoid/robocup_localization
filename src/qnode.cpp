@@ -185,6 +185,8 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
     vision_data_cnt += 1;
     Likelihood.vision_point.CONFIDENCE = msg->corner_confidence[i];
     Likelihood.vision_point.DISTANCE = msg->corner_distance[i];
+    Likelihood.vision_point.RAW_X_MM = msg->corner_point_vec_x[i];
+    Likelihood.vision_point.RAW_Y_MM = msg->corner_point_vec_y[i];
     Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0_z)*M_PI / 180) + msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0_z)*M_PI / 180));
     Likelihood.vision_point.POINT_VEC_Y = (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0_z)*M_PI / 180) - msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0_z)*M_PI / 180));
     Likelihood.vision_point.STD_X = robot0_x;
@@ -208,6 +210,8 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
     vision_data_cnt += 1;
     Likelihood.vision_point.CONFIDENCE = msg->t_confidence[i];
     Likelihood.vision_point.DISTANCE = msg->t_distance[i];
+    Likelihood.vision_point.RAW_X_MM = msg->t_point_vec_x[i];
+    Likelihood.vision_point.RAW_Y_MM = msg->t_point_vec_y[i];
     Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0_z)*M_PI / 180) + msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0_z)*M_PI / 180));
     Likelihood.vision_point.POINT_VEC_Y = (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0_z)*M_PI / 180) - msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0_z)*M_PI / 180));
     Likelihood.vision_point.STD_X = robot0_x;
@@ -231,6 +235,8 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
     vision_data_cnt += 1;
     Likelihood.vision_point.CONFIDENCE = msg->cross_confidence[i];
     Likelihood.vision_point.DISTANCE = msg->cross_distance[i];
+    Likelihood.vision_point.RAW_X_MM = msg->cross_point_vec_x[i];
+    Likelihood.vision_point.RAW_Y_MM = msg->cross_point_vec_y[i];
     Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0_z)*M_PI / 180) + msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0_z)*M_PI / 180));
     Likelihood.vision_point.POINT_VEC_Y = (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0_z)*M_PI / 180) - msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0_z)*M_PI / 180));
     Likelihood.vision_point.STD_X = robot0_x;
@@ -276,22 +282,21 @@ void QNode::imuCallback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg)
     return;
   }
 
-  if(local_helper_)  {
-    
-    switch(local_helper_dir){
-      case 0: 
-       robot0.z = -90.0;
-       break;
-      
-      case 1: 
-        robot0.z = 90.0;
-        break; 
-
+  if (local_helper_)
+  {
+    switch (local_helper_dir)
+    {
+      case 0: robot0.z = -90.0; break;
+      case 1: robot0.z =  90.0; break;
     }
-
     return;
   }
-  else robot0.z = msg->yaw;
+
+  double raw_yaw = msg->yaw;
+  ik_d_yaw = raw_yaw - robot0.z;
+  if (ik_d_yaw >  180.0) ik_d_yaw -= 360.0;
+  if (ik_d_yaw < -180.0) ik_d_yaw += 360.0;
+  robot0.z = raw_yaw;
 }
 
 void QNode::visionCallback(const robocup_vision::msg::Robocupvision::SharedPtr msg)
@@ -412,6 +417,12 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
 
       pt[i].x += n_trans * cos(n_dir);
       pt[i].y += n_trans * sin(n_dir);
+
+      // 파티클 θ: IMU delta + 비례 노이즈
+      double yaw_noise = Likelihood.gaussianRandom(0, ALPHA5 * fabs(ik_d_yaw) + 0.1);
+      pt[i].z += ik_d_yaw + yaw_noise;
+      if (pt[i].z >  180.0) pt[i].z -= 360.0;
+      if (pt[i].z < -180.0) pt[i].z += 360.0;
 
       // 필드 경계 클램핑
       if (pt[i].x < IK_PX_MIN_X)

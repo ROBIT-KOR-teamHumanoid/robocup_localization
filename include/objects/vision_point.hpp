@@ -7,9 +7,14 @@ struct VISION_POINT
     double CONFIDENCE;          // 포인트 데이터의 신뢰도
     double DISTANCE;            // 포인트 데이터의 거리
 
-    // 특징점과 로봇 사이의 거리 (픽셀 단위)
+    // 특징점과 로봇 사이의 거리 (픽셀 단위, robot0.z 기준 world-frame)
     int POINT_VEC_X;
     int POINT_VEC_Y;
+
+    // 특징점 원시 로봇 좌표계 거리 (mm, yaw 변환 전)
+    // per-particle theta 변환에 사용
+    double RAW_X_MM;
+    double RAW_Y_MM;
 
     // 로봇의 픽셀 좌표
     int STD_X;

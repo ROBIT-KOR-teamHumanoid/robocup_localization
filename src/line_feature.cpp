@@ -2,6 +2,15 @@
 #include "../include/objects/line_feature.hpp"
 #include "../include/robocup_localization/qnode.hpp"
 
+#include <random>
+
+static std::mt19937 &getRng()
+{
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    return gen;
+}
+
 
 void Line_Feature::featureCalc(QNode *qnode, double particle_range)
 {
@@ -40,7 +49,7 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
         for (int i = 0; i < qnode->particle_num; i++)
         {
             fc_meas.NUM    = i;
-            fc_meas.WEIGHT = weight_calculate(qnode->pt[i].x, qnode->pt[i].y,
+            fc_meas.WEIGHT = weight_calculate(qnode->pt[i].x, qnode->pt[i].y, qnode->pt[i].z,
                                               robot0_x, robot0_y,
                                               vision_point_vect);
             particle_weight.push_back(fc_meas);
@@ -98,7 +107,7 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
                 cdf[i] = cdf[i - 1] + particle_weight[i].WEIGHT / total_weight;
 
             fc_step = 1.0 / qnode->particle_num;
-            fc_r    = ((double)rand() / RAND_MAX) * fc_step;
+            fc_r    = std::uniform_real_distribution<double>(0.0, fc_step)(getRng());
             new_x.resize(qnode->particle_num);
             new_y.resize(qnode->particle_num);
             fc_j = 0;
@@ -149,27 +158,37 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
     }
 }
 
-double Line_Feature::weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, vector<VISION_POINT> &vect)
+double Line_Feature::weight_calculate(int PT_X, int PT_Y, float PT_Z, int NOW_X, int NOW_Y, vector<VISION_POINT> &vect)
 {
-    // PRE CONDITION : PT_X, PT_Y, ROBOT_X, ROBOT_Y, VECTOR<VISION_POINT> = VISION_POINT_VECT
+    // PRE CONDITION : PT_X, PT_Y, PT_Z(파티클 yaw deg), ROBOT_X, ROBOT_Y, VECTOR<VISION_POINT>
     // POST CONDITION : weight
-    // PURPOSE : Mahalanobis distance 기반 가중치 계산
+    // PURPOSE : Mahalanobis distance 기반 가중치 계산 (per-particle theta 적용)
+    //   관측(RAW_X_MM, RAW_Y_MM)을 파티클 θ로 재변환 → 파티클별 독립 방향 추정
     //   D^2 = dn^2/sigma_n^2 + dp^2/sigma_p^2
-    //   dn: 파티클→랜드마크 방향 오차, dp: 수직 방향 오차
-    //   sigma = INV_*_VAR * dist_m + 0.05 (거리 비례 공분산)
     //   weight += CONFIDENCE * exp(-0.5 * D^2)
 
     weight = 0.0;
 
+    double pt_z_rad = PT_Z * DEG2RAD;
+    double cp = cos(pt_z_rad);
+    double sp = sin(pt_z_rad);
+
     for (int i = 0; i < (int)vect.size(); i++)
     {
-        ptx = PT_X + VisionPointUtils::worldX(vect[i]) - NOW_X;
-        pty = PT_Y + VisionPointUtils::worldY(vect[i]) - NOW_Y;
+        // 파티클 θ로 관측 벡터 재변환 (robot-frame mm → world-frame pixel)
+        double raw_x_m = vect[i].RAW_X_MM / 1000.0;
+        double raw_y_m = vect[i].RAW_Y_MM / 1000.0;
+        int vec_x = (int)((-raw_x_m * cp - raw_y_m * sp) * FieldCoord::PX_PER_M_X);
+        int vec_y = (int)(( raw_x_m * sp - raw_y_m * cp) * FieldCoord::PX_PER_M_Y);
+
+        ptx = PT_X + vec_x;
+        pty = PT_Y + vec_y;
 
         min_dis = LARGE_DIST;
         best_j  = -1;
 
-        obs_angle = VisionPointUtils::bearing(vect[i]);
+        // bearing: 파티클 θ 기준 재변환된 vec_x, vec_y로 계산
+        obs_angle = atan2(vec_y, vec_x);
 
         double obs_feat_field_x = VisionPointUtils::worldX(vect[i]);
         double obs_feat_field_y = VisionPointUtils::worldY(vect[i]);
@@ -261,17 +280,8 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, int NOW_X, int NOW_Y, 
 
 double Line_Feature::gaussianRandom(double average, double stdev)
 {
-    double v1, v2, s, temp;
-    do
-    {
-        v1 = 2 * ((double)rand() / RAND_MAX) - 1;
-        v2 = 2 * ((double)rand() / RAND_MAX) - 1;
-        s  = v1 * v1 + v2 * v2;
-    } while (s >= 1 || s == 0);
-    s    = sqrt((-2 * log(s)) / s);
-    temp = v1 * s;
-    temp = (stdev * temp) + average;
-    return temp;
+    static std::normal_distribution<double> dist(0.0, 1.0);
+    return average + stdev * dist(getRng());
 }
 
 void Line_Feature::random_point(ROBOT &robot, int x, int y, float particle_range)

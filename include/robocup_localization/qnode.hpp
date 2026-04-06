@@ -45,7 +45,7 @@
 #define DEG2RAD (M_PI / 180)
 
 // ===== Subscribe =====
-struct VISIONMSG
+struct VisionMsg
 {
   int Ball_cam_X = 0;
   int Ball_cam_Y = 0;
@@ -63,18 +63,18 @@ struct VISIONMSG
   int flag_pan = 0;
 };
 
-struct IMUMSG
+struct ImuMsg
 {
   float yaw = 0.0f;
 };
 
-struct IKMSG
+struct IkMsg
 {
   int x = 0;
   int y = 0;
 };
 
-struct UDPMSG
+struct UDPMsg
 {
   int robotnum = 0;
   int robotcase = 0;
@@ -85,13 +85,13 @@ struct UDPMSG
   int bally = 0;
 };
 
-struct MASTERMSG
+struct MasterMsg
 {
   int targetx = 0;
   int targety = 0;
 };
 
-struct GAMEMSG
+struct GameMsg
 {
   int mySide = 1;
   int penalty = 0;
@@ -101,7 +101,7 @@ struct GAMEMSG
 };
 
 // ===== Publish =====
-struct LOCALMSG
+struct LocalMsg
 {
   float ball_x = 0.0f;
   float ball_y = 0.0f;
@@ -113,12 +113,12 @@ struct LOCALMSG
   vector<float> obstacles_y;
 };
 
-struct PANCOMPMSG
+struct PancompMsg
 {
   float target_yaw_deg = 0.0f;
 };
 
-struct TechnicalChallengeMSG
+struct TechnicalChallengeMsg
 {
   int ball_in_approach = 0;
   double blind_robot_x = 0.0;
@@ -159,13 +159,13 @@ public:
   int set_ball_flag = 0;
 
   // For Objects
-  VISIONMSG visionMSG;
-  IMUMSG imuMSG;
-  IKMSG ikMSG;
-  UDPMSG udpMSG;
-  MASTERMSG masterMSG;
-  LOCALMSG localMSG;
-  PANCOMPMSG panCompMSG;
+  VisionMsg visionMSG;
+  ImuMsg imuMSG;
+  IkMsg ikMSG;
+  UDPMsg udpMSG;
+  MasterMsg masterMSG;
+  LocalMsg localMSG;
+  PancompMsg panCompMSG;
   ROBOT robot0 = ROBOT();
   ROBOT robot1 = ROBOT();
   ROBOT robot2 = ROBOT();
@@ -180,8 +180,8 @@ public:
   std::vector<OBSTACLE> obstacles;
 
   // For gamecontrol
-  GAMEMSG gameMSG;
-  TechnicalChallengeMSG technical_challengeMSG;
+  GameMsg gameMSG;
+  TechnicalChallengeMsg technical_challengeMSG;
 
   // For particle
   int particle_num = 8000;
@@ -236,20 +236,35 @@ private:
   double ik_dx, ik_dy;
   double ik_rot1, ik_trans;
   double ik_rot1_dev, ik_trans_dev;
+  double ik_d_yaw = 0.0;  // IMU yaw 변화량 (deg), 파티클 θ 업데이트에 사용
 
   // rot1/trans/rot2 모션 모델 alpha 계수 (튜닝 가능)
   // alpha1: rot 노이즈 ← rot 크기
   // alpha2: rot 노이즈 ← trans 크기
   // alpha3: trans 노이즈 ← trans 크기
   // alpha4: trans 노이즈 ← rot 크기
+  // alpha5: yaw 노이즈 ← yaw delta 크기
   static constexpr double ALPHA1 = 0.05;
   static constexpr double ALPHA2 = 0.01;
   static constexpr double ALPHA3 = 0.15;
   static constexpr double ALPHA4 = 0.05;
+  static constexpr double ALPHA5 = 0.1;
   static constexpr double IK_PX_MIN_X = FieldCoord::toPixelX(-FieldCoord::A / 2);
   static constexpr double IK_PX_MAX_X = FieldCoord::toPixelX(FieldCoord::A / 2);
   static constexpr double IK_PX_MIN_Y = FieldCoord::toPixelY(FieldCoord::B / 2);
   static constexpr double IK_PX_MAX_Y = FieldCoord::toPixelY(-FieldCoord::B / 2);
+
+//   1단계: ALPHA3부터 (위치 노이즈 제일 체감)
+//        로봇 직진 → 파티클 퍼짐이 실제 오차와 비슷하면 OK
+
+// 2단계: ALPHA1 (방향 노이즈)
+//        제자리 회전 → 랜드마크 매칭 후 수렴 속도 확인
+
+// 3단계: ALPHA5 (yaw 노이즈)
+//        IMU 드리프트 구간에서 파티클 θ가 랜드마크로 보정되는지 확인
+
+// 4단계: ALPHA2, ALPHA4는 마지막에 미세 조정
+
 Q_SIGNALS:
   void rosShutDown();
 signals:
