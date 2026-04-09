@@ -20,7 +20,7 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
 
     if (obs_size > 10)
     {
-        cout << "particle update" << endl;
+         printf("[LocalNode] Particle update\n");
         if (qnode->vision_data_cnt > 0 && qnode->vision_data_size / qnode->vision_data_cnt <= 1)
         {
             for (int i = 0; i < qnode->particle_num; i++)
@@ -64,9 +64,9 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
         if (total_weight > 0 && particle_weight[0].WEIGHT > qnode->weight_update_threshold)
         {
             if (qnode->vision_data_cnt > 0 && qnode->vision_data_size / qnode->vision_data_cnt <= 1)
-                cout << "SMALL MATCHING!! : " << particle_weight[0].WEIGHT << endl;
+                printf("[LocalNode] SMALL MATCHING!! : %f\n", particle_weight[0].WEIGHT);
             else
-                cout << "MATCHING!! : " << particle_weight[0].WEIGHT << endl;
+                printf("[LocalNode] MATCHING!! : %f\n", particle_weight[0].WEIGHT);
 
             top_n = 3;  
             sum_w = 0.0;
@@ -288,6 +288,7 @@ void Line_Feature::random_point(ROBOT &robot, int x, int y, float particle_range
 {
     robot.x = x + gaussianRandom(0, particle_range);
     robot.y = y + gaussianRandom(0, particle_range);
+    robot.z = robot.z + gaussianRandom(0, THETA_INIT_SPREAD_DEG);
 }
 
 bool sort_return(MEASUREMENT x, MEASUREMENT y)

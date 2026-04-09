@@ -355,11 +355,11 @@ void MainWindow::select_ball()
   else
   {
     qnode->ball.noballcnt += 1;
-    if (qnode->ball.noballcnt >= 1000)
+    if (qnode->ball.noballcnt >= 300) // 약 15초
     {
       qnode->ball.x = 0;
       qnode->ball.y = 0;
-      qnode->ball.noballcnt = 1000;
+      qnode->ball.noballcnt = 300;
     }
   }
 
@@ -500,11 +500,11 @@ void MainWindow::setting()
       Last_Index_Num_IN >> qnode->robot0.odom_bx;
       Last_Index_Num_IN >> qnode->robot0.odom_ly;
       Last_Index_Num_IN >> qnode->robot0.odom_ry;
-      std::cout << "Odom Load" << std::endl;
+      printf("[LocalNode] Odom Load\n");
     }
     else
     {
-      std::cout << "No Odom Data" << std::endl;
+      printf("[LocalNode] No Odom Data\n");
     }
     Last_Index_Num_IN.close(); // setting_flag가 0이면 로드 된 데이터를 ui슬라이더에 적용
     ui->particle_range_value->setValue(particle_range);
@@ -691,7 +691,7 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
     }
   }
 
-  // cout<<qnode->Likelihood.vision_point_vect.size()<<endl;
+  
   for (int i = 0; i < qnode->Likelihood.vision_point_vect.size(); i++)
   {
     auto px = cvt_Print_xy(qnode->Likelihood.vision_point_vect[i].STD_X +
@@ -713,7 +713,7 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
   }
   if (qnode->Likelihood.vision_point_vect.size() != 0)
   {
-    // cout<<qnode->Likelihood.CIRCLE_R<<endl;
+   
     scene->addEllipse(cvt_Print_xy(qnode->Likelihood.filter.CIRCLE_CENTER.x -
                                    qnode->Likelihood.filter.CIRCLE_R),
                       cvt_Print_xy(qnode->Likelihood.filter.CIRCLE_CENTER.y -
@@ -1001,11 +1001,11 @@ void MainWindow::on_btn_objects_save_clicked()
     Last_Index_Num_OUT << qnode->robot0.odom_bx << endl;
     Last_Index_Num_OUT << qnode->robot0.odom_ly << endl;
     Last_Index_Num_OUT << qnode->robot0.odom_ry << endl;
-    std::cout << "Odom Param set" << std::endl;
+    printf("[LocalNode] Odom Param set\n");
   }
   else
   {
-    std::cout << "No Odom Prameter" << std::endl;
+    printf("[LocalNode] No Odom Parameter\n");
   }
   Last_Index_Num_OUT.close();
 }

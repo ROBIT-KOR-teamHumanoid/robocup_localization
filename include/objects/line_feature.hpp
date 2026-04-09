@@ -65,6 +65,9 @@ public:
     // perp 방향 분산 계수. INV_NORM_VAR보다 크게 설정 → 수직 오차에 더 관대.
     static constexpr double INV_PERP_VAR = 0.2;
 
+    // resampling 시 파티클 θ 초기 분산 (deg). 너무 작으면 theta 다양성 소실.
+    static constexpr double THETA_INIT_SPREAD_DEG = 5.0;
+
     // L_SHAPE 거리 매칭 게이트 (미터). 관측 거리와 실제 거리 차이가 이 값 초과이면 랜드마크 skip.
     static constexpr double L_DIST_GATE_M = 0.5;
 
