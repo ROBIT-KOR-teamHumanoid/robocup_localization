@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include "../field_coordinate/field_coordinate.hpp"
 
 struct VISION_POINT
 {
@@ -39,7 +40,7 @@ public:
     static double bearing(const VISION_POINT& vp) { return atan2(vp.POINT_VEC_Y, vp.POINT_VEC_X); }
 
     // synthetic 관측 생성 (checkLocalPoint 후 다음 사이클용)
-    static VISION_POINT makeSynthetic(int lx, int ly, int robot_x, int robot_y, int type)
+    static VISION_POINT makeSynthetic(int lx, int ly, int robot_x, int robot_y, int type, double robot_yaw_deg)
     {
         VISION_POINT vp;
         vp.CONFIDENCE            = 0.1;
@@ -51,6 +52,15 @@ public:
         vp.FEATURE_TYPE          = type;
         vp.BALL_RELATIVE_ANGLE   = 0.0;
         vp.BALL_FEATURE_DISTANCE = 0.0;
+
+        // RAW_X_MM/Y: POINT_VEC를 robot yaw로 역변환 (world-frame pixel → robot-frame mm)
+        double pvx_m = vp.POINT_VEC_X / FieldCoord::PX_PER_M_X;
+        double pvy_m = vp.POINT_VEC_Y / FieldCoord::PX_PER_M_Y;
+        double c = std::cos(robot_yaw_deg * M_PI / 180.0);
+        double s = std::sin(robot_yaw_deg * M_PI / 180.0);
+        vp.RAW_X_MM = (-pvx_m * c + pvy_m * s) * 1000.0;
+        vp.RAW_Y_MM = (-pvx_m * s - pvy_m * c) * 1000.0;
+
         return vp;
     }
 };

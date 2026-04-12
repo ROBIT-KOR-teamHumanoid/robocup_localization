@@ -13,7 +13,7 @@
       local_pub_topic: "localization"
 
     particle_filter:
-      weight_update_threshold: 3.0
+      weight_update_threshold: 5.0
       particle_nums: 8000
       
     setup_mode:

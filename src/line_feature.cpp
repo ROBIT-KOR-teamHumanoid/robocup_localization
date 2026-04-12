@@ -68,7 +68,7 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
             else
                 printf("[LocalNode] MATCHING!! : %f\n", particle_weight[0].WEIGHT);
 
-            top_n = 3;  
+            top_n = 1;  
             sum_w = 0.0;
             wx    = 0.0;
             wy    = 0.0;
@@ -136,6 +136,15 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
         if (synthetic_cnt < 0)
             synthetic_cnt = 0;
 
+        // 실제 관측된 타입만 수집 (clear 전)
+        bool observed_types[3] = {false, false, false};
+        for (int k = synthetic_cnt; k < (int)vision_point_vect.size(); k++)
+        {
+            int t = vision_point_vect[k].FEATURE_TYPE;
+            if (t >= 0 && t < 3)
+                observed_types[t] = true;
+        }
+
         filter.checkLocalPoint(synthetic_cnt, qnode->robot0.z, vision_point_vect);
 
         particle_weight.clear();
@@ -147,13 +156,16 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
         {
             if (!FieldCoord::ALL_POINTS[i].active)
                 continue;
-            if (filter.Local_point_check[i] == 1)
-            {
-                vision_point_vect.push_back(VisionPointUtils::makeSynthetic(
-                    filter.Local_point_x[i], filter.Local_point_y[i],
-                    qnode->robot0.x, qnode->robot0.y,
-                    static_cast<int>(FieldCoord::ALL_POINTS[i].type)));
-            }
+            if (filter.Local_point_check[i] != 1)
+                continue;
+            int feat_type = static_cast<int>(FieldCoord::ALL_POINTS[i].type);
+            if (feat_type < 0 || feat_type >= 3 || !observed_types[feat_type])
+                continue;
+            vision_point_vect.push_back(VisionPointUtils::makeSynthetic(
+                filter.Local_point_x[i], filter.Local_point_y[i],
+                qnode->robot0.x, qnode->robot0.y,
+                feat_type,
+                qnode->robot0.z));
         }
     }
 }
