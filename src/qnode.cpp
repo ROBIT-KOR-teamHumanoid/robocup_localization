@@ -392,8 +392,8 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
     // 이동 없음 — 미세 확산 노이즈만 적용
     for (int i = 0; i < particle_num; i++)
     {
-      pt[i].x += Likelihood.gaussianRandom(0, 0.5);
-      pt[i].y += Likelihood.gaussianRandom(0, 0.5);
+      pt[i].x += Likelihood.gaussianRandom(0, 0.1);
+      pt[i].y += Likelihood.gaussianRandom(0, 0.1);
     }
   }
   else

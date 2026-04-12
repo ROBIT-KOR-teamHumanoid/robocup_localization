@@ -244,11 +244,11 @@ private:
   // alpha3: trans 노이즈 ← trans 크기
   // alpha4: trans 노이즈 ← rot 크기
   // alpha5: yaw 노이즈 ← yaw delta 크기
-  static constexpr double ALPHA1 = 0.05;
-  static constexpr double ALPHA2 = 0.01;
-  static constexpr double ALPHA3 = 0.15;
-  static constexpr double ALPHA4 = 0.05;
-  static constexpr double ALPHA5 = 0.1;
+  static constexpr double ALPHA1 = 0.01;
+  static constexpr double ALPHA2 = 0.001;
+  static constexpr double ALPHA3 = 0.03;
+  static constexpr double ALPHA4 = 0.01;
+  static constexpr double ALPHA5 = 0.02;
   static constexpr double IK_PX_MIN_X = FieldCoord::toPixelX(-FieldCoord::A / 2);
   static constexpr double IK_PX_MAX_X = FieldCoord::toPixelX(FieldCoord::A / 2);
   static constexpr double IK_PX_MIN_Y = FieldCoord::toPixelY(FieldCoord::B / 2);
