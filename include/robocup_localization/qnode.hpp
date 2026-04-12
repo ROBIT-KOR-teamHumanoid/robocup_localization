@@ -192,6 +192,7 @@ public:
   // For settings
   bool corner_kick_receiver_ = false;
   bool local_helper_ = false;
+  bool noise_enable_ = true;
   int local_helper_dir = 0; // 0: left, 1: right
 
   // Thread safety: vision_point_vect 공유 보호

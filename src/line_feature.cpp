@@ -120,7 +120,7 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
                 new_y[i] = qnode->pt[particle_weight[fc_j].NUM].y;
             }
 
-            resample_noise = particle_range * 0.1;
+            resample_noise = qnode->noise_enable_ ? particle_range * 0.1 : 0.0;
             for (int i = 0; i < qnode->particle_num; i++)
             {
                 qnode->pt[i].x = new_x[i] + gaussianRandom(0, resample_noise);

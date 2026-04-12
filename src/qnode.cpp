@@ -106,6 +106,7 @@ QNode::QNode(int argc, char **argv)
   node->declare_parameter("topic.local_pub_topic", "localization");
   node->declare_parameter("particle_filter.weight_update_threshold", 50.0);
   node->declare_parameter("particle_filter.particle_nums", particle_num);
+  node->declare_parameter("particle_filter.noise_enable", true);
   node->declare_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver", false);
   node->declare_parameter("setup_mode.Technical_Challenge_mode.Local_helper", false);
   auto imu_topic = node->get_parameter("topic.imu_sub_topic").as_string();
@@ -134,6 +135,7 @@ QNode::QNode(int argc, char **argv)
 
   weight_update_threshold = node->get_parameter("particle_filter.weight_update_threshold").as_double();
   particle_num = node->get_parameter("particle_filter.particle_nums").as_int();
+  noise_enable_ = node->get_parameter("particle_filter.noise_enable").as_bool();
   pt.resize(particle_num);
   corner_kick_receiver_ = node->get_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver").as_bool();
   local_helper_         = node->get_parameter("setup_mode.Technical_Challenge_mode.Local_helper").as_bool();
@@ -389,50 +391,51 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
 
   if (ik_trans < 0.1)
   {
-    // 이동 없음 — 미세 확산 노이즈만 적용
-    for (int i = 0; i < particle_num; i++)
+    if (noise_enable_)
     {
-      pt[i].x += Likelihood.gaussianRandom(0, 0.1);
-      pt[i].y += Likelihood.gaussianRandom(0, 0.1);
+      for (int i = 0; i < particle_num; i++)
+      {
+        pt[i].x += Likelihood.gaussianRandom(0, 0.1);
+        pt[i].y += Likelihood.gaussianRandom(0, 0.1);
+      }
     }
   }
   else
   {
-    // robot-frame 이동 방향 (IK 원본 단위 비율로 계산)
     ik_rot1 = atan2(ik_Ymoved, ik_Xmoved);
 
-    // alpha 비례 노이즈 표준편차
-    // - trans 방향 노이즈: 이동량 + 회전량에 비례
-    // - 방향(rot) 노이즈: 회전량 + 이동량에 비례
-    ik_trans_dev = ALPHA3 * ik_trans + ALPHA4 * fabs(ik_rot1);
-    ik_rot1_dev  = ALPHA1 * fabs(ik_rot1) + ALPHA2 * ik_trans;
-
-    // world-frame 이동 방향
     double world_dir = atan2(ik_dy, ik_dx);
 
     for (int i = 0; i < particle_num; i++)
     {
-      double n_trans = ik_trans + Likelihood.gaussianRandom(0, ik_trans_dev);
-      double n_dir   = world_dir + Likelihood.gaussianRandom(0, ik_rot1_dev);
+      if (noise_enable_)
+      {
+        ik_trans_dev = ALPHA3 * ik_trans + ALPHA4 * fabs(ik_rot1);
+        ik_rot1_dev  = ALPHA1 * fabs(ik_rot1) + ALPHA2 * ik_trans;
 
-      pt[i].x += n_trans * cos(n_dir);
-      pt[i].y += n_trans * sin(n_dir);
+        double n_trans = ik_trans + Likelihood.gaussianRandom(0, ik_trans_dev);
+        double n_dir   = world_dir + Likelihood.gaussianRandom(0, ik_rot1_dev);
 
-      // 파티클 θ: IMU delta + 비례 노이즈
-      double yaw_noise = Likelihood.gaussianRandom(0, ALPHA5 * fabs(ik_d_yaw) + 0.1);
-      pt[i].z += ik_d_yaw + yaw_noise;
+        pt[i].x += n_trans * cos(n_dir);
+        pt[i].y += n_trans * sin(n_dir);
+
+        double yaw_noise = Likelihood.gaussianRandom(0, ALPHA5 * fabs(ik_d_yaw) + 0.1);
+        pt[i].z += ik_d_yaw + yaw_noise;
+      }
+      else
+      {
+        pt[i].x += ik_trans * cos(world_dir);
+        pt[i].y += ik_trans * sin(world_dir);
+        pt[i].z += ik_d_yaw;
+      }
+
       if (pt[i].z >  180.0) pt[i].z -= 360.0;
       if (pt[i].z < -180.0) pt[i].z += 360.0;
 
-      // 필드 경계 클램핑
-      if (pt[i].x < IK_PX_MIN_X)
-        pt[i].x = IK_PX_MIN_X;
-      if (pt[i].x > IK_PX_MAX_X)
-        pt[i].x = IK_PX_MAX_X;
-      if (pt[i].y < IK_PX_MIN_Y)
-        pt[i].y = IK_PX_MIN_Y;
-      if (pt[i].y > IK_PX_MAX_Y)
-        pt[i].y = IK_PX_MAX_Y;
+      if (pt[i].x < IK_PX_MIN_X) pt[i].x = IK_PX_MIN_X;
+      if (pt[i].x > IK_PX_MAX_X) pt[i].x = IK_PX_MAX_X;
+      if (pt[i].y < IK_PX_MIN_Y) pt[i].y = IK_PX_MIN_Y;
+      if (pt[i].y > IK_PX_MAX_Y) pt[i].y = IK_PX_MAX_Y;
     }
   }
 }
