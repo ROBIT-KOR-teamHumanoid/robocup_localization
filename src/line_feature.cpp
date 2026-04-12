@@ -1,4 +1,4 @@
-#include "../../robot_config.h"
+#include "../robot_config.h"
 #include "../include/objects/line_feature.hpp"
 #include "../include/robocup_localization/qnode.hpp"
 

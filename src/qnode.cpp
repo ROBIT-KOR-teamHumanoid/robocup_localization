@@ -12,7 +12,7 @@
 
 #include "../include/robocup_localization/qnode.hpp"
 
-#include "../../robot_config.h"
+#include "../robot_config.h"
 #include "../include/field_coordinate/field_coordinate.hpp"
 
 /*****************************************************************************
