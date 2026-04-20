@@ -511,7 +511,7 @@ void QNode::gameControlCallback(const gamecontroller::msg::Gamecontroldata::Shar
       }
       for (int i = 0; i < particle_num; i++)
       {
-        Likelihood.random_point(pt[i], robot0.x, robot0.y, particle_range);
+        Likelihood.random_point(pt[i], robot0.x, robot0.y, particle_range, robot0.z);
       }
     }
     else
@@ -528,7 +528,7 @@ void QNode::gameControlCallback(const gamecontroller::msg::Gamecontroldata::Shar
       }
       for (int i = 0; i < particle_num; i++)
       {
-        Likelihood.random_point(pt[i], robot0.x, robot0.y, particle_range);
+        Likelihood.random_point(pt[i], robot0.x, robot0.y, particle_range, robot0.z);
       }
     }
     robot0.TIME_STAMP.clear();

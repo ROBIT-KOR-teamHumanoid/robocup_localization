@@ -22,12 +22,6 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
     {
          cout << "PARTICLE UPDATE!! : " << endl;
          
-        if (qnode->vision_data_cnt > 0 && qnode->vision_data_size / qnode->vision_data_cnt <= 1)
-        {
-            for (int i = 0; i < qnode->particle_num; i++)
-                random_point(qnode->pt[i], qnode->robot0.x, qnode->robot0.y, particle_range, robot0_z);
-        }
-
         // 공 필드 좌표 계산 (Ball_2d_X/Y = pan-rotated robot-relative mm)
         float robot0_x, robot0_y, robot0_z;
         {
@@ -42,6 +36,12 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
         ball_visible        = (ball_mm_x != 0.0 || ball_mm_y != 0.0);
         ball_field_px_x     = robot0_x + (-1) * (ball_mm_x / 1000.0 * FieldCoord::PX_PER_M_X * cos(yaw_rad) + ball_mm_y / 1000.0 * FieldCoord::PX_PER_M_X * sin(yaw_rad));
         ball_field_px_y     = robot0_y + (ball_mm_x / 1000.0 * FieldCoord::PX_PER_M_Y * sin(yaw_rad) - ball_mm_y / 1000.0 * FieldCoord::PX_PER_M_Y * cos(yaw_rad));
+
+        if (qnode->vision_data_cnt > 0 && qnode->vision_data_size / qnode->vision_data_cnt <= 1)
+        {
+            for (int i = 0; i < qnode->particle_num; i++)
+                random_point(qnode->pt[i], qnode->robot0.x, qnode->robot0.y, particle_range, robot0_z);
+        }
 
         filter.setCircle(robot0_z, vision_point_vect);
 
