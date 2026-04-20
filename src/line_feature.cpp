@@ -25,7 +25,7 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
         if (qnode->vision_data_cnt > 0 && qnode->vision_data_size / qnode->vision_data_cnt <= 1)
         {
             for (int i = 0; i < qnode->particle_num; i++)
-                random_point(qnode->pt[i], qnode->robot0.x, qnode->robot0.y, particle_range);
+                random_point(qnode->pt[i], qnode->robot0.x, qnode->robot0.y, particle_range, robot0_z);
         }
 
         // 공 필드 좌표 계산 (Ball_2d_X/Y = pan-rotated robot-relative mm)
@@ -297,11 +297,11 @@ double Line_Feature::gaussianRandom(double average, double stdev)
     return average + stdev * dist(getRng());
 }
 
-void Line_Feature::random_point(ROBOT &robot, int x, int y, float particle_range)
+void Line_Feature::random_point(ROBOT &robot, int x, int y, float particle_range, float theta)
 {
     robot.x = x + gaussianRandom(0, particle_range);
     robot.y = y + gaussianRandom(0, particle_range);
-    robot.z = robot.z + gaussianRandom(0, THETA_INIT_SPREAD_DEG);
+    robot.z = theta + gaussianRandom(0, THETA_INIT_SPREAD_DEG);
 }
 
 bool sort_return(MEASUREMENT x, MEASUREMENT y)

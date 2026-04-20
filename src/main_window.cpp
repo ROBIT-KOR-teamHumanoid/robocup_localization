@@ -862,7 +862,7 @@ void MainWindow::mouseReleaseEvent(QMouseEvent *e)
       for (int i = 0; i < qnode->particle_num; i++)
       {
         qnode->Likelihood.random_point(qnode->pt[i], qnode->robot0.x, qnode->robot0.y,
-                                       particle_range);
+                                       particle_range, qnode->robot0.z);
       }
     }
     set_robot_flag = 0;
@@ -1021,7 +1021,7 @@ static void setRobotPos(QNode *qnode, float x, float y, float particle_range)
   {
     std::lock_guard<std::mutex> pt_lock(qnode->pt_mutex);
     for (int i = 0; i < qnode->particle_num; i++)
-      qnode->Likelihood.random_point(qnode->pt[i], qnode->robot0.x, qnode->robot0.y, particle_range);
+      qnode->Likelihood.random_point(qnode->pt[i], qnode->robot0.x, qnode->robot0.y, particle_range, qnode->robot0.z);
   }
   qnode->robot0.TIME_STAMP.clear();
   qnode->master_target_x = 0;

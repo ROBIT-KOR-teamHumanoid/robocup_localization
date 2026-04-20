@@ -40,7 +40,7 @@ public:
     double weight_calculate(int PT_X, int PT_Y, float PT_Z, int NOW_X, int NOW_Y, vector<VISION_POINT> &vect);
 
     static double gaussianRandom(double average, double stdev);
-    static void random_point(ROBOT &robot, int x, int y, float particle_range);
+    static void random_point(ROBOT &robot, int x, int y, float particle_range, float theta);
 
     VISION_POINT vision_point;
     vector<VISION_POINT> vision_point_vect;
