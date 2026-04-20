@@ -22,6 +22,8 @@
 #include <QStringListModel>
 #include <string.h>
 #include <mutex>
+#include <thread>
+#include <condition_variable>
 
 #include "humanoid_interfaces/msg/imu_msg.hpp"
 #include "robocup_vision/msg/robocupvision.hpp"
@@ -266,10 +268,17 @@ private:
 
 // 4단계: ALPHA2, ALPHA4는 마지막에 미세 조정
 
+  void startMclProcessing();
+  void mclProcessing();
+
+  std::thread mcl_thread_;
+  std::condition_variable mcl_cv_;
+  std::mutex mcl_mutex_;
+  bool mcl_pending_ = false;
+  bool mcl_running_ = false;
+
 Q_SIGNALS:
   void rosShutDown();
-signals:
-  void featureReceived();
 };
 
 #endif

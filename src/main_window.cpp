@@ -106,7 +106,7 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
     // 좌측 페널티 에어리어
     p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2),
                FieldCoord::toPixelY(FieldCoord::H / 2),
-               (int)(FieldCoord::G * FieldCoord::PX_PER_M_X),
+               (int)(FieldCoord::G * FieldCoord::PX_PER_M_X), 
                (int)(FieldCoord::H * FieldCoord::PX_PER_M_Y));
 
     // 우측 페널티 에어리어
@@ -160,7 +160,6 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
   qnode->robot0.y = FieldCoord::MAP_H / 2;
 
   QObject::connect(qnode, SIGNAL(rosShutDown()), this, SLOT(close()));
-  QObject::connect(qnode, SIGNAL(featureReceived()), this, SLOT(featureCalc()));
 }
 
 void MainWindow::main()
@@ -516,6 +515,7 @@ void MainWindow::setting()
   }
   // ui의 슬라이더 값을 오도메트리 값에 적용
   particle_range = ui->particle_range_value->value();
+  qnode->particle_range = particle_range;
   qnode->robot0.odom_fx = ui->odom_fx_value->value();
   qnode->robot0.odom_bx = ui->odom_bx_value->value();
   qnode->robot0.odom_ly = ui->odom_ly_value->value();

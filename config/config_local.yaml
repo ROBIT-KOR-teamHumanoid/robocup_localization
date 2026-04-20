@@ -13,9 +13,9 @@
       local_pub_topic: "localization"
 
     particle_filter:
-      weight_update_threshold: 5.0
+      weight_update_threshold: 4.0
       particle_nums: 8000
-      noise_enable: true
+      noise_enable: false
 
     setup_mode:
       Soccer_mode : true 

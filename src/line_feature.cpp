@@ -20,7 +20,8 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
 
     if (obs_size > 10)
     {
-         printf("[LocalNode] Particle update\n");
+         cout << "PARTICLE UPDATE!! : " << endl;
+         
         if (qnode->vision_data_cnt > 0 && qnode->vision_data_size / qnode->vision_data_cnt <= 1)
         {
             for (int i = 0; i < qnode->particle_num; i++)

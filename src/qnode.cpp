@@ -144,13 +144,45 @@ QNode::QNode(int argc, char **argv)
   {
     // 알아서 사용
   }
+
+  startMclProcessing();
 }
 
 QNode::~QNode()
 {
+  {
+    std::lock_guard<std::mutex> lock(mcl_mutex_);
+    mcl_running_ = false;
+  }
+  mcl_cv_.notify_one();
+  if (mcl_thread_.joinable())
+    mcl_thread_.join();
+
   if (rclcpp::ok())
   {
     rclcpp::shutdown();
+  }
+}
+
+void QNode::startMclProcessing()
+{
+  mcl_running_ = true;
+  mcl_thread_ = std::thread(&QNode::mclProcessing, this);
+}
+
+void QNode::mclProcessing()
+{
+  while (mcl_running_)
+  {
+    std::unique_lock<std::mutex> lock(mcl_mutex_);
+    while (!mcl_pending_ && mcl_running_)
+      mcl_cv_.wait(lock);
+    if (!mcl_running_)
+      break;
+    mcl_pending_ = false;
+    lock.unlock();
+
+    Likelihood.featureCalc(this, particle_range);
   }
 }
 
@@ -271,7 +303,11 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
     //   (int)msg->cross_confidence.size(),
     //   vision_data_cnt);
     Likelihood.filter.setCircle(robot0_z, Likelihood.vision_point_vect);
-    emit featureReceived();
+    {
+      std::lock_guard<std::mutex> lock(mcl_mutex_);
+      mcl_pending_ = true;
+    }
+    mcl_cv_.notify_one();
   }
 }
 
