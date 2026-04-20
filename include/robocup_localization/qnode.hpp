@@ -201,6 +201,8 @@ public:
   std::mutex vision_mutex;
   // Thread safety: robot0 공유 보호 (ROS 콜백 스레드 , Qt 메인 스레드)
   std::mutex robot0_mutex;
+  // Thread safety: pt[] 공유 보호 (ikCallback vs mclProcessing)
+  std::mutex pt_mutex;
 
 protected:
   void run();

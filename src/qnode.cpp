@@ -182,7 +182,10 @@ void QNode::mclProcessing()
     mcl_pending_ = false;
     lock.unlock();
 
-    Likelihood.featureCalc(this, particle_range);
+    {
+      std::lock_guard<std::mutex> pt_lock(pt_mutex);
+      Likelihood.featureCalc(this, particle_range);
+    }
   }
 }
 
@@ -425,15 +428,19 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
   // rot2는 yaw를 IMU에서 별도 처리하므로 0으로 가정
   ik_trans = sqrt(ik_dx * ik_dx + ik_dy * ik_dy);
 
+  std::lock_guard<std::mutex> pt_lock(pt_mutex);
   if (ik_trans < 0.1)
   {
-    if (noise_enable_)
+    for (int i = 0; i < particle_num; i++)
     {
-      for (int i = 0; i < particle_num; i++)
+      if (noise_enable_)
       {
         pt[i].x += Likelihood.gaussianRandom(0, 0.1);
         pt[i].y += Likelihood.gaussianRandom(0, 0.1);
       }
+      pt[i].z += ik_d_yaw;
+      if (pt[i].z >  180.0) pt[i].z -= 360.0;
+      if (pt[i].z < -180.0) pt[i].z += 360.0;
     }
   }
   else
