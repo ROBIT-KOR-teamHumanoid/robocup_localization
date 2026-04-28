@@ -18,8 +18,9 @@
       noise_enable: false
 
     setup_mode:
-      Soccer_mode : true 
+      Soccer_mode : true
       
       Technical_Challenge_mode : 
         Corner_kick_receiver: false
         Local_helper: false
+        Local_kicker: false

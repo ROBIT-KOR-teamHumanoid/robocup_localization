@@ -9,7 +9,7 @@
 
 #include "../field_coordinate/field_coordinate.hpp"
 
-namespace technical_challenge
+namespace cornerkick_challenge
 {
 
 static constexpr double APPROACH_RADIUS_M  = 0.25; // 호 반지름
@@ -62,4 +62,4 @@ inline bool is_ball_in_approach_circle(float robot_x, float robot_y,
     return (dx * fwd_x + dy * fwd_y) >= 0.0;
 }
 
-} // namespace technical_challenge
+} // namespace cornerkick_challenge

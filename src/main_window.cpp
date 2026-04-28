@@ -21,7 +21,7 @@
 
 #include "robot_config.h"
 #include "../include/field_coordinate/field_coordinate.hpp"
-#include "../include/technical_challenge/technical_challenge.hpp"
+#include "../include/technical_challenge/cornerkick_challenge.hpp"
 
 MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindowDesign)
@@ -171,7 +171,7 @@ void MainWindow::main()
   if (qnode->corner_kick_receiver_ && qnode->gameMSG.state == 7 && qnode->gameMSG.position == 3)
   {
     qnode->technical_challengeMSG.ball_in_approach =
-        technical_challenge::is_ball_in_approach_circle(
+        cornerkick_challenge::is_ball_in_approach_circle(
             qnode->robot0.x, qnode->robot0.y,
             qnode->ball.x, qnode->ball.y,
             qnode->robot0.z)
@@ -760,7 +760,7 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
 
   if (qnode->corner_kick_receiver_ && qnode->gameMSG.state == 7 && qnode->gameMSG.position == 3)
   {
-    technical_challenge::draw_approach_circle(
+    cornerkick_challenge::draw_approach_circle(
         scene,
         cvt_Print_xy(qnode->robot0.x),
         cvt_Print_xy(qnode->robot0.y),

@@ -1,7 +1,7 @@
 #include <cmath>
 #include "../field_coordinate/field_coordinate.hpp"
 
-namespace colaborate_localization
+namespace RH
 {
 
 // 비전에서 관측한 상대 로봇 벡터(mm)를 절대 필드 좌표(m)로 변환
@@ -24,3 +24,9 @@ inline void computeBlindRobotCoord(
 }
 
 }
+
+namespace RK
+{
+    
+} // namespace RK
+

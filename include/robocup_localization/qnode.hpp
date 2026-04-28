@@ -192,8 +192,10 @@ public:
   std::vector<ROBOT> pt;
 
   // For settings
+  bool soccer_mode_ = true;
   bool corner_kick_receiver_ = false;
   bool local_helper_ = false;
+  bool local_kicker_ = false;
   bool noise_enable_ = true;
   int local_helper_dir = 0; // 0: left, 1: right
 
@@ -217,6 +219,7 @@ private:
   void gameControlCallback(const gamecontroller::msg::Gamecontroldata::SharedPtr msg);
   void udpCallback(const humanoid_interfaces::msg::Udp2master::SharedPtr msg);
   void masterCallback(const humanoid_interfaces::msg::Master2localization::SharedPtr msg);
+  void blindRobotCallback(const robocup_localization::msg::TechnicalChallenge::SharedPtr msg);
   void yaw_compensation();
 
   rclcpp::Subscription<humanoid_interfaces::msg::ImuMsg>::SharedPtr imu_sub_;
@@ -226,6 +229,7 @@ private:
   rclcpp::Subscription<gamecontroller::msg::Gamecontroldata>::SharedPtr game_control_sub_;
   rclcpp::Subscription<humanoid_interfaces::msg::Udp2master>::SharedPtr udp_sub_;
   rclcpp::Subscription<humanoid_interfaces::msg::Master2localization>::SharedPtr master_sub_;
+  rclcpp::Subscription<robocup_localization::msg::TechnicalChallenge>::SharedPtr blind_robot_sub_;
 
   rclcpp::Publisher<robocup_vision::msg::PanAngleCompensation>::SharedPtr pan_angle_comp_pub_;
 
