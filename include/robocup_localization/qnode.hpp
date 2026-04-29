@@ -37,7 +37,6 @@
 #include "humanoid_interfaces/msg/udp2master.hpp"
 #include "humanoid_interfaces/msg/master2localization.hpp"
 
-
 #include "../objects/robot.hpp"
 #include "../objects/obstacle.hpp"
 #include "../objects/ball.hpp"
@@ -89,8 +88,12 @@ struct UDPMsg
 
 struct MasterMsg
 {
-  int targetx = 0;
-  int targety = 0;
+  int master_target_x = 0;
+  int master_target_y = 0;
+  float master_best_position_attack_x = 0.0f;
+  float master_best_position_attack_y = 0.0f;
+  float master_best_position_defend_x = 0.0f;
+  float master_best_position_defend_y = 0.0f;
 };
 
 struct GameMsg
@@ -154,11 +157,11 @@ public:
 
   // For print
   int robot_sight_flag = 0;
-  int master_target_x = 0;
-  int master_target_y = 0;
 
   // For UI
   int set_ball_flag = 0;
+  int set_obstacle_flag = 0;
+  std::vector<OBSTACLE> debug_obstacles;
 
   // For Objects
   VisionMsg visionMSG;
@@ -245,7 +248,7 @@ private:
   double ik_dx, ik_dy;
   double ik_rot1, ik_trans;
   double ik_rot1_dev, ik_trans_dev;
-  double ik_d_yaw = 0.0;  // IMU yaw 변화량 (deg), 파티클 θ 업데이트에 사용
+  double ik_d_yaw = 0.0; // IMU yaw 변화량 (deg), 파티클 θ 업데이트에 사용
 
   // rot1/trans/rot2 모션 모델 alpha 계수 (튜닝 가능)
   // alpha1: rot 노이즈 ← rot 크기
@@ -263,16 +266,16 @@ private:
   static constexpr double IK_PX_MIN_Y = FieldCoord::toPixelY(FieldCoord::B / 2);
   static constexpr double IK_PX_MAX_Y = FieldCoord::toPixelY(-FieldCoord::B / 2);
 
-//   1단계: ALPHA3부터 (위치 노이즈 제일 체감)
-//        로봇 직진 → 파티클 퍼짐이 실제 오차와 비슷하면 OK
+  //   1단계: ALPHA3부터 (위치 노이즈 제일 체감)
+  //        로봇 직진 → 파티클 퍼짐이 실제 오차와 비슷하면 OK
 
-// 2단계: ALPHA1 (방향 노이즈)
-//        제자리 회전 → 랜드마크 매칭 후 수렴 속도 확인
+  // 2단계: ALPHA1 (방향 노이즈)
+  //        제자리 회전 → 랜드마크 매칭 후 수렴 속도 확인
 
-// 3단계: ALPHA5 (yaw 노이즈)
-//        IMU 드리프트 구간에서 파티클 θ가 랜드마크로 보정되는지 확인
+  // 3단계: ALPHA5 (yaw 노이즈)
+  //        IMU 드리프트 구간에서 파티클 θ가 랜드마크로 보정되는지 확인
 
-// 4단계: ALPHA2, ALPHA4는 마지막에 미세 조정
+  // 4단계: ALPHA2, ALPHA4는 마지막에 미세 조정
 
   void startMclProcessing();
   void mclProcessing();

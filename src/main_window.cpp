@@ -106,7 +106,7 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
     // 좌측 페널티 에어리어
     p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2),
                FieldCoord::toPixelY(FieldCoord::H / 2),
-               (int)(FieldCoord::G * FieldCoord::PX_PER_M_X), 
+               (int)(FieldCoord::G * FieldCoord::PX_PER_M_X),
                (int)(FieldCoord::H * FieldCoord::PX_PER_M_Y));
 
     // 우측 페널티 에어리어
@@ -195,6 +195,11 @@ void MainWindow::main()
   qnode->localMSG.obstacles_x.clear();
   qnode->localMSG.obstacles_y.clear();
   for (const auto &obs : qnode->obstacles)
+  {
+    qnode->localMSG.obstacles_x.push_back(obs.x);
+    qnode->localMSG.obstacles_y.push_back(obs.y);
+  }
+  for (const auto &obs : qnode->debug_obstacles)
   {
     qnode->localMSG.obstacles_x.push_back(obs.x);
     qnode->localMSG.obstacles_y.push_back(obs.y);
@@ -600,6 +605,14 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
     }
   }
 
+  // print debug obstacles
+  for (const auto &obs : qnode->debug_obstacles)
+  {
+    scene->addRect(cvt_Print_xy(obs.x) - 6,
+                   cvt_Print_xy(obs.y) - 6, 12, 12, redPen,
+                   redBrush);
+  }
+
   // PRINT PARTICLE
   if (true)
   {
@@ -691,7 +704,6 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
     }
   }
 
-  
   for (int i = 0; i < qnode->Likelihood.vision_point_vect.size(); i++)
   {
     auto px = cvt_Print_xy(qnode->Likelihood.vision_point_vect[i].STD_X +
@@ -713,7 +725,7 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
   }
   if (qnode->Likelihood.vision_point_vect.size() != 0)
   {
-   
+
     scene->addEllipse(cvt_Print_xy(qnode->Likelihood.filter.CIRCLE_CENTER.x -
                                    qnode->Likelihood.filter.CIRCLE_R),
                       cvt_Print_xy(qnode->Likelihood.filter.CIRCLE_CENTER.y -
@@ -722,19 +734,43 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
                       cvt_Print_xy(qnode->Likelihood.filter.CIRCLE_R * 2), blackPen);
   }
 
-  // PRINT MASTER TARGET
-  if (qnode->master_target_x != 0 || qnode->master_target_y != 0)
+  // PRINT BEST ATTACK POSITION
+  if (qnode->masterMSG.master_best_position_attack_x != 0.0f || qnode->masterMSG.master_best_position_attack_y != 0.0f)
   {
-    scene->addLine(cvt_Print_xy(qnode->master_target_x) + 4,
-                   cvt_Print_xy(qnode->master_target_y),
-                   cvt_Print_xy(qnode->master_target_x) - 4,
-                   cvt_Print_xy(qnode->master_target_y), targetPen);
-    scene->addLine(cvt_Print_xy(qnode->master_target_x),
-                   cvt_Print_xy(qnode->master_target_y) + 4,
-                   cvt_Print_xy(qnode->master_target_x),
-                   cvt_Print_xy(qnode->master_target_y) - 4, targetPen);
-    scene->addLine(cvt_Print_xy(qnode->master_target_x) + 2,
-                   cvt_Print_xy(qnode->master_target_y) + 2,
+    int bpx = FieldCoord::toPixelX(qnode->masterMSG.master_best_position_attack_x);
+    int bpy = FieldCoord::toPixelY(qnode->masterMSG.master_best_position_attack_y);
+    QPen bluePen(Qt::blue);
+    bluePen.setWidth(2);
+    QBrush blueFill(Qt::blue);
+    scene->addEllipse(bpx - 8, bpy - 8, 16, 16, bluePen, blueFill);
+  }
+
+  if (qnode->masterMSG.master_best_position_defend_x != 0.0f ||
+      qnode->masterMSG.master_best_position_defend_y != 0.0f)
+  {
+    int bpx = FieldCoord::toPixelX(qnode->masterMSG.master_best_position_defend_x);
+    int bpy = FieldCoord::toPixelY(qnode->masterMSG.master_best_position_defend_y);
+    QPen purplePen(Qt::magenta);
+    purplePen.setWidth(2);
+
+    QBrush purpleFill(Qt::magenta);
+
+    scene->addEllipse(bpx - 8, bpy - 8, 16, 16, purplePen, purpleFill);
+  }
+
+  // PRINT MASTER TARGET
+  if (qnode->masterMSG.master_target_x != 0 || qnode->masterMSG.master_target_y != 0)
+  {
+    scene->addLine(cvt_Print_xy(qnode->masterMSG.master_target_x) + 4,
+                   cvt_Print_xy(qnode->masterMSG.master_target_y),
+                   cvt_Print_xy(qnode->masterMSG.master_target_x) - 4,
+                   cvt_Print_xy(qnode->masterMSG.master_target_y), targetPen);
+    scene->addLine(cvt_Print_xy(qnode->masterMSG.master_target_x),
+                   cvt_Print_xy(qnode->masterMSG.master_target_y) + 4,
+                   cvt_Print_xy(qnode->masterMSG.master_target_x),
+                   cvt_Print_xy(qnode->masterMSG.master_target_y) - 4, targetPen);
+    scene->addLine(cvt_Print_xy(qnode->masterMSG.master_target_x) + 2,
+                   cvt_Print_xy(qnode->masterMSG.master_target_y) + 2,
                    cvt_Print_xy(qnode->robot0.x), cvt_Print_xy(qnode->robot0.y),
                    targetlinePen);
   }
@@ -867,17 +903,23 @@ void MainWindow::mouseReleaseEvent(QMouseEvent *e)
     }
     set_robot_flag = 0;
     qnode->robot0.TIME_STAMP.clear();
-    qnode->master_target_x = 0;
-    qnode->master_target_y = 0;
+    qnode->masterMSG.master_target_x = 0;
+    qnode->masterMSG.master_target_y = 0;
   }
 
-  if (qnode->set_ball_flag)
+  if (!obstacle_mode && qnode->set_ball_flag)
   {
     qnode->ball.x = scenePos.x();
     qnode->ball.y = scenePos.y();
     qnode->ball.set_x = qnode->ball.x;
     qnode->ball.set_y = qnode->ball.y;
     qnode->ball.noballcnt = 0;
+  }
+
+  if (qnode->set_obstacle_flag)
+  {
+    qnode->debug_obstacles.push_back(OBSTACLE(scenePos.x(), scenePos.y()));
+    qnode->set_obstacle_flag = 0;
   }
 }
 
@@ -893,10 +935,10 @@ void MainWindow::mouseMoveEvent(QMouseEvent *e)
     qnode->robot0.x = scenePos.x();
     qnode->robot0.y = scenePos.y();
     qnode->robot0.TIME_STAMP.clear();
-    qnode->master_target_x = 0;
-    qnode->master_target_y = 0;
+    qnode->masterMSG.master_target_x = 0;
+    qnode->masterMSG.master_target_y = 0;
   }
-  if (qnode->set_ball_flag)
+  if (!obstacle_mode && qnode->set_ball_flag)
   {
     qnode->ball.x = scenePos.x();
     qnode->ball.y = scenePos.y();
@@ -1024,8 +1066,8 @@ static void setRobotPos(QNode *qnode, float x, float y, float particle_range)
       qnode->Likelihood.random_point(qnode->pt[i], qnode->robot0.x, qnode->robot0.y, particle_range, qnode->robot0.z);
   }
   qnode->robot0.TIME_STAMP.clear();
-  qnode->master_target_x = 0;
-  qnode->master_target_y = 0;
+  qnode->masterMSG.master_target_x = 0;
+  qnode->masterMSG.master_target_y = 0;
 }
 
 void MainWindow::on_btn_set_1_clicked()
@@ -1151,21 +1193,36 @@ void MainWindow::on_btn_set_auto_clicked()
 }
 void MainWindow::on_btn_ball_set_clicked()
 {
-  // PRE CONDITION : UI
-  // POST CONDITION : qnode->set_ball_flag
-  // purpose : 공 설정
-
-  qnode->set_ball_flag = 1;
+  if (obstacle_mode)
+  {
+    qnode->set_obstacle_flag = 1;
+  }
+  else
+  {
+    qnode->set_ball_flag = 1;
+  }
 }
 void MainWindow::on_btn_ball_del_clicked()
 {
-  // PRE CONDITION : UI
-  // POST CONDITION : qnode->set_ball_flag, qnode->ball.N
-  // purpose : 공 삭제 버튼
-
-  qnode->set_ball_flag = 0;
-  qnode->ball.x = 0;
-  qnode->ball.y = 0;
+  if (obstacle_mode)
+  {
+    if (!qnode->debug_obstacles.empty())
+      qnode->debug_obstacles.pop_back();
+  }
+  else
+  {
+    qnode->set_ball_flag = 0;
+    qnode->ball.x = 0;
+    qnode->ball.y = 0;
+  }
+}
+void MainWindow::on_obstacle_trigger_clicked()
+{
+  obstacle_mode = !obstacle_mode;
+  if (obstacle_mode)
+    ui->subtitle0_2->setText("Set Obstacle");
+  else
+    ui->subtitle0_2->setText(" SET BALL");
 }
 void MainWindow::on_btn_test_clicked()
 {

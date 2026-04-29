@@ -539,8 +539,8 @@ void QNode::gameControlCallback(const gamecontroller::msg::Gamecontroldata::Shar
       }
     }
     robot0.TIME_STAMP.clear();
-    master_target_x = 0;
-    master_target_y = 0;
+    masterMSG.master_target_x = 0;
+    masterMSG.master_target_y = 0;
   }
 }
 
@@ -605,8 +605,12 @@ void QNode::masterCallback(const humanoid_interfaces::msg::Master2localization::
   // POST CONDITION : master_target_N
   // purpose : 마스터에서 받은 타겟 좌표 데이터 적용
   
-  master_target_x = msg->targetx;
-  master_target_y = msg->targety; // 시각화 용임. 로직에서는 안 쓰임
+  masterMSG.master_target_x = msg->targetx;
+  masterMSG.master_target_y = msg->targety;
+  masterMSG.master_best_position_attack_x = msg->bestposition_x;
+  masterMSG.master_best_position_attack_y = msg->bestposition_y;
+  masterMSG.master_best_position_defend_x = msg->defendposition_x;
+  masterMSG.master_best_position_defend_y = msg->defendposition_y;
 }
 
 void QNode::yaw_compensation()

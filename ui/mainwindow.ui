@@ -435,7 +435,7 @@ color: rgb(0, 0, 0);</string>
    <widget class="QLabel" name="subtitle0_2">
     <property name="geometry">
      <rect>
-      <x>310</x>
+      <x>280</x>
       <y>880</y>
       <width>101</width>
       <height>25</height>
@@ -976,6 +976,29 @@ color: rgb(46, 52, 54);</string>
      <string>TR</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="obstacle_trigger">
+    <property name="geometry">
+     <rect>
+      <x>330</x>
+      <y>960</y>
+      <width>41</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Ubuntu Mono</family>
+      <weight>75</weight>
+      <bold>true</bold>
+     </font>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png&quot;);</string>
+    </property>
+    <property name="text">
+     <string>OBS</string>
+    </property>
+   </widget>
    <zorder>label_4</zorder>
    <zorder>label_5</zorder>
    <zorder>layout0</zorder>
@@ -1018,6 +1041,7 @@ color: rgb(46, 52, 54);</string>
    <zorder>btn_info</zorder>
    <zorder>btn_set_7</zorder>
    <zorder>btn_set_8</zorder>
+   <zorder>obstacle_trigger</zorder>
   </widget>
   <action name="action_Quit">
    <property name="text">
