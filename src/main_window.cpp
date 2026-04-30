@@ -1147,46 +1147,50 @@ void MainWindow::on_btn_set_auto_clicked()
   {
     if (qnode->gameMSG.robotNum == 1)
     {
-      x = toPixelX(0.8);
-      y = toPixelY(B / 2);
+
+      x = toPixelX(3.5);
+      y = toPixelY(-B / 2);
     }
     else if (qnode->gameMSG.robotNum == 2)
+    {
+
+      x = toPixelX(0.8);
+      y = toPixelY(-B / 2);
+    }
+    else if (qnode->gameMSG.robotNum == 3)
     {
       x = toPixelX(2.5);
       y = toPixelY(B / 2);
     }
-    else if (qnode->gameMSG.robotNum == 3)
-    {
-      x = toPixelX(0.8);
-      y = toPixelY(-B / 2);
-    }
     else if (qnode->gameMSG.robotNum == 4)
     {
-      x = toPixelX(3.5);
-      y = toPixelY(-B / 2);
+      x = toPixelX(0.8);
+      y = toPixelY(B / 2);
     }
   }
   else
   {
     if (qnode->gameMSG.robotNum == 1)
     {
-      x = toPixelX(-0.8);
-      y = toPixelY(-B / 2);
+
+      x = toPixelX(-3.5);
+      y = toPixelY(B / 2);
     }
     else if (qnode->gameMSG.robotNum == 2)
     {
-      x = toPixelX(-2.5);
-      y = toPixelY(-B / 2);
-    }
-    else if (qnode->gameMSG.robotNum == 3)
-    {
       x = toPixelX(-0.8);
       y = toPixelY(B / 2);
     }
+    else if (qnode->gameMSG.robotNum == 3)
+    {
+
+      x = toPixelX(-2.5);
+      y = toPixelY(-B / 2);
+    }
     else if (qnode->gameMSG.robotNum == 4)
     {
-      x = toPixelX(-3.5);
-      y = toPixelY(B / 2);
+      x = toPixelX(-0.8);
+      y = toPixelY(-B / 2);
     }
   }
   setRobotPos(qnode, x, y, particle_range);
