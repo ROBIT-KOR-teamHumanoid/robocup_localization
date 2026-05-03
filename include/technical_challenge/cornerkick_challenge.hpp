@@ -12,7 +12,7 @@
 namespace cornerkick_challenge
 {
 
-static constexpr double APPROACH_RADIUS_M  = 0.25; // 호 반지름
+static constexpr double APPROACH_RADIUS_M  = 0.5; // 호 반지름
 static constexpr double APPROACH_RADIUS_PX = APPROACH_RADIUS_M * FieldCoord::PX_PER_M_X;
 
 // 로봇 정면 기준 반원을 씬에 그림

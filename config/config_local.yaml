@@ -21,7 +21,7 @@
       Soccer_mode : true
       
       Technical_Challenge_mode : 
-        Corner_kick_receiver: false
+        Corner_kick_receiver: true
         Local_helper: false
         Local_kicker: false
         High_kicker: false

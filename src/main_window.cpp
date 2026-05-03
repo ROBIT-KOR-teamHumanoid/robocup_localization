@@ -170,10 +170,12 @@ void MainWindow::main()
 
   if (qnode->corner_kick_receiver_ && qnode->gameMSG.state == 7 && qnode->gameMSG.position == 3)
   {
+    float predicted_ball_x = qnode->ball.x + qnode->ball.speed_x * qnode->visionMSG.Ball_speed_level;
+    float predicted_ball_y = qnode->ball.y + qnode->ball.speed_y * qnode->visionMSG.Ball_speed_level;
     qnode->technical_challengeMSG.ball_in_approach =
         cornerkick_challenge::is_ball_in_approach_circle(
             qnode->robot0.x, qnode->robot0.y,
-            qnode->ball.x, qnode->ball.y,
+            predicted_ball_x, predicted_ball_y,
             qnode->robot0.z)
             ? 1
             : 0;
@@ -804,7 +806,7 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
     cornerkick_challenge::draw_approach_circle(
         scene,
         cvt_Print_xy(qnode->robot0.x),
-        cvt_Print_xy(qnode->robot0.y),
+        cvt_Print_xy(qnode->robot0.y)+5,
         qnode->robot0.z);
   }
 
