@@ -199,6 +199,7 @@ public:
   bool corner_kick_receiver_ = false;
   bool local_helper_ = false;
   bool local_kicker_ = false;
+  bool high_kicker_ = false;
   bool noise_enable_ = true;
   int local_helper_dir = 0; // 0: left, 1: right
 

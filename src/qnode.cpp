@@ -111,6 +111,7 @@ QNode::QNode(int argc, char **argv)
   node->declare_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver", false);
   node->declare_parameter("setup_mode.Technical_Challenge_mode.Local_helper", false);
   node->declare_parameter("setup_mode.Technical_Challenge_mode.Local_kicker", false);
+  node->declare_parameter("setup_mode.Technical_Challenge_mode.High_kicker", false);
   auto imu_topic = node->get_parameter("topic.imu_sub_topic").as_string();
   auto vision_topic = node->get_parameter("topic.vision_sub_topic").as_string();
   auto vision_feature_topic = node->get_parameter("topic.vision_feature_sub_topic").as_string();
@@ -142,6 +143,7 @@ QNode::QNode(int argc, char **argv)
   corner_kick_receiver_ = node->get_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver").as_bool();
   local_helper_         = node->get_parameter("setup_mode.Technical_Challenge_mode.Local_helper").as_bool();
   local_kicker_         = node->get_parameter("setup_mode.Technical_Challenge_mode.Local_kicker").as_bool();
+  high_kicker_          = node->get_parameter("setup_mode.Technical_Challenge_mode.High_kicker").as_bool();
 
   if (local_helper_||corner_kick_receiver_)
     technical_challenge_pub_ = node->create_publisher<robocup_localization::msg::TechnicalChallenge>("/technical_challenge", 5);

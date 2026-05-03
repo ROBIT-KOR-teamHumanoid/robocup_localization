@@ -496,6 +496,11 @@ void MainWindow::setting()
 #ifdef ROBIT_HUMANOID_ROBOT_NUMBER_6
     param = share_dir + "/resources/param/PARAM6.txt";
 #endif
+
+    if(qnode->high_kicker_)
+    {
+      param = share_dir + "/resources/param/HIGH_KICKER_PARAM.txt";
+    }
     ifstream Last_Index_Num_IN(param);
     if (Last_Index_Num_IN.is_open())
     {
@@ -1122,17 +1127,33 @@ void MainWindow::on_btn_set_6_clicked()
 void MainWindow::on_btn_set_7_clicked()
 {
   using namespace FieldCoord;
-  qnode->robot0.z = -90.0;
-  qnode->local_helper_dir = 0;
-  setRobotPos(qnode, toPixelX(-A / 2), toPixelY(F / 2 + (H - F) / 4), 0);
+  if (qnode->high_kicker_)
+  {
+    qnode->robot0.z = 90.0;
+    setRobotPos(qnode, toPixelX(-A / 2 + G), toPixelY(0), 0);
+  }
+  else if(qnode->local_helper_)
+  {
+    qnode->robot0.z = -90.0;
+    qnode->local_helper_dir = 0;
+    setRobotPos(qnode, toPixelX(-A / 2), toPixelY(F / 2 + (H - F) / 4), 0);
+  }
 }
 
 void MainWindow::on_btn_set_8_clicked()
 {
   using namespace FieldCoord;
-  qnode->robot0.z = 90.0;
-  qnode->local_helper_dir = 1;
-  setRobotPos(qnode, toPixelX(A / 2), toPixelY(-F / 2 - (H - F) / 4), 0);
+  if (qnode->high_kicker_)
+  {
+    qnode->robot0.z = -90.0;
+    setRobotPos(qnode, toPixelX(A / 2 - G), toPixelY(0), 0);
+  }
+  else if(qnode->local_helper_)
+  {
+    qnode->robot0.z = 90.0;
+    qnode->local_helper_dir = 1;
+    setRobotPos(qnode, toPixelX(A / 2), toPixelY(-F / 2 - (H - F) / 4), 0);
+  }
 }
 
 void MainWindow::on_btn_set_auto_clicked()
