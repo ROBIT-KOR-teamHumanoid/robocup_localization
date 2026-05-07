@@ -37,7 +37,7 @@
 #include "humanoid_interfaces/msg/udp2master.hpp"
 #include "humanoid_interfaces/msg/master2localization.hpp"
 
-#include "../objects/robot.hpp"
+#include "../robot_odom_model/robot_odom_model.hpp"
 #include "../objects/obstacle.hpp"
 #include "../objects/ball.hpp"
 #include "../objects/line_feature.hpp"
@@ -105,19 +105,6 @@ struct GameMsg
   int state = 0;
 };
 
-// ===== Publish =====
-struct LocalMsg
-{
-  float ball_x = 0.0f;
-  float ball_y = 0.0f;
-  float ball_speed_x = 0.0f;
-  float ball_speed_y = 0.0f;
-  float robot_x = 0.0f;
-  float robot_y = 0.0f;
-  vector<float> obstacles_x;
-  vector<float> obstacles_y;
-};
-
 struct PancompMsg
 {
   float target_yaw_deg = 0.0f;
@@ -143,11 +130,25 @@ public:
   rclcpp::Publisher<robocup_localization::msg::RobocupLocalization>::SharedPtr localization_pub_;
   rclcpp::Publisher<robocup_localization::msg::TechnicalChallenge>::SharedPtr technical_challenge_pub_;
 
-  void publish_localization();
+  void publish_localization(
+      float ball_x, float ball_y,
+      float ball_speed_x, float ball_speed_y,
+      float robot_x, float robot_y,
+      const std::vector<float> &obstacles_x,
+      const std::vector<float> &obstacles_y);
   void publish_pan_comp();
   void publish_technical_challenge();
+  void getParams();
 
   string robot_feature;
+  string imu_topic;
+  string vision_topic;
+  string vision_feature_topic;
+  string ik_topic;
+  string game_control_topic;
+  string udp_topic;
+  string master_topic;
+  string local_pub_topic;
 
   int vision_data_cnt = 0;
   int vision_data_size = 0;
@@ -169,7 +170,6 @@ public:
   IkMsg ikMSG;
   UDPMsg udpMSG;
   MasterMsg masterMSG;
-  LocalMsg localMSG;
   PancompMsg panCompMSG;
   ROBOT robot0 = ROBOT();
   ROBOT robot1 = ROBOT();
@@ -239,6 +239,7 @@ private:
 
   int yaw_correction_cooldown_ = 100;
   int imu_ignore_count_ = 0;
+  int loop_hz = 20;
   std::vector<double> goal_post_pan_deg_buf_;
 
   static constexpr double YAW_DRIFT_THRESHOLD_DEG = 60.0;

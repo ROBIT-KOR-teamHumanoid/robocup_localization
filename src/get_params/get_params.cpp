@@ -1,0 +1,44 @@
+#include "../../include/robocup_localization/qnode.hpp"
+
+void QNode::getParams()
+{
+
+    node->declare_parameter("robot_feature", "kids");
+    node->declare_parameter("topic.imu_sub_topic", "Imu");
+    node->declare_parameter("topic.vision_sub_topic", "vision");
+    node->declare_parameter("topic.vision_feature_sub_topic", "vision_feature");
+    node->declare_parameter("topic.ik_sub_topic", "ikcoordinate");
+    node->declare_parameter("topic.game_control_sub_topic", "gamecontroldata");
+    node->declare_parameter("topic.udp_sub_topic", "udp");
+    node->declare_parameter("topic.master_sub_topic", "master2local");
+    node->declare_parameter("topic.local_pub_topic", "localization");
+    node->declare_parameter("particle_filter.weight_update_threshold", 50.0);
+    node->declare_parameter("particle_filter.particle_nums", particle_num);
+    node->declare_parameter("particle_filter.noise_enable", true);
+    node->declare_parameter("setup_mode.Soccer_mode", true);
+    node->declare_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver", false);
+    node->declare_parameter("setup_mode.Technical_Challenge_mode.Local_helper", false);
+    node->declare_parameter("setup_mode.Technical_Challenge_mode.Local_kicker", false);
+    node->declare_parameter("setup_mode.Technical_Challenge_mode.High_kicker", false);
+    imu_topic = node->get_parameter("topic.imu_sub_topic").as_string();
+    vision_topic = node->get_parameter("topic.vision_sub_topic").as_string();
+    vision_feature_topic = node->get_parameter("topic.vision_feature_sub_topic").as_string();
+    ik_topic = node->get_parameter("topic.ik_sub_topic").as_string();
+    game_control_topic = node->get_parameter("topic.game_control_sub_topic").as_string();
+    udp_topic = node->get_parameter("topic.udp_sub_topic").as_string();
+    master_topic = node->get_parameter("topic.master_sub_topic").as_string();
+    local_pub_topic = node->get_parameter("topic.local_pub_topic").as_string();
+
+    // adult / kids different config
+    robot_feature = node->get_parameter("robot_feature").as_string();
+
+    weight_update_threshold = node->get_parameter("particle_filter.weight_update_threshold").as_double();
+    particle_num = node->get_parameter("particle_filter.particle_nums").as_int();
+    noise_enable_ = node->get_parameter("particle_filter.noise_enable").as_bool();
+    pt.resize(particle_num);
+    soccer_mode_ = node->get_parameter("setup_mode.Soccer_mode").as_bool();
+    corner_kick_receiver_ = node->get_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver").as_bool();
+    local_helper_ = node->get_parameter("setup_mode.Technical_Challenge_mode.Local_helper").as_bool();
+    local_kicker_ = node->get_parameter("setup_mode.Technical_Challenge_mode.Local_kicker").as_bool();
+    high_kicker_ = node->get_parameter("setup_mode.Technical_Challenge_mode.High_kicker").as_bool();
+}

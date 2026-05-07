@@ -12,7 +12,7 @@
 #include <mutex>
 
 #include "../field_coordinate/field_coordinate.hpp"
-#include "../objects/robot.hpp"
+#include "../robot_odom_model/robot_odom_model.hpp"
 #include "../objects/vision_point.hpp"
 #include "../robocup_localization/filter.hpp"
 

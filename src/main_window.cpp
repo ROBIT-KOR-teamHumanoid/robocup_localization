@@ -187,26 +187,26 @@ void MainWindow::main()
     qnode->publish_technical_challenge();
   }
 
-  // 퍼블리시할 데이터를 localMSG에 채운 후 publish
-  qnode->localMSG.ball_x = qnode->ball.x;
-  qnode->localMSG.ball_y = qnode->ball.y;
-  qnode->localMSG.ball_speed_x = qnode->ball.x + qnode->ball.speed_x * qnode->visionMSG.Ball_speed_level;
-  qnode->localMSG.ball_speed_y = qnode->ball.y + qnode->ball.speed_y * qnode->visionMSG.Ball_speed_level;
-  qnode->localMSG.robot_x = qnode->robot0.x;
-  qnode->localMSG.robot_y = qnode->robot0.y;
-  qnode->localMSG.obstacles_x.clear();
-  qnode->localMSG.obstacles_y.clear();
+  std::vector<float> obs_x, obs_y;
   for (const auto &obs : qnode->obstacles)
   {
-    qnode->localMSG.obstacles_x.push_back(obs.x);
-    qnode->localMSG.obstacles_y.push_back(obs.y);
+    obs_x.push_back(obs.x);
+    obs_y.push_back(obs.y);
   }
   for (const auto &obs : qnode->debug_obstacles)
   {
-    qnode->localMSG.obstacles_x.push_back(obs.x);
-    qnode->localMSG.obstacles_y.push_back(obs.y);
+    obs_x.push_back(obs.x);
+    obs_y.push_back(obs.y);
   }
-  qnode->publish_localization();
+  qnode->publish_localization(
+      qnode->ball.x,
+      qnode->ball.y,
+      qnode->ball.x + qnode->ball.speed_x * qnode->visionMSG.Ball_speed_level,
+      qnode->ball.y + qnode->ball.speed_y * qnode->visionMSG.Ball_speed_level,
+      qnode->robot0.x,
+      qnode->robot0.y,
+      obs_x,
+      obs_y);
 }
 
 void MainWindow::Print_Screen_Ball()
@@ -547,13 +547,13 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
   }
 
   char TEXT[256];
-  sprintf(TEXT, "BALL_X : %d", (int)qnode->localMSG.ball_x);
+  sprintf(TEXT, "BALL_X : %d", (int)qnode->ball.x);
   ui->BALL_X_value->setText(TEXT);
-  sprintf(TEXT, "BALL_Y : %d", (int)qnode->localMSG.ball_y);
+  sprintf(TEXT, "BALL_Y : %d", (int)qnode->ball.y);
   ui->BALL_Y_value->setText(TEXT);
-  sprintf(TEXT, "ROBOT_X : %d", (int)qnode->localMSG.robot_x);
+  sprintf(TEXT, "ROBOT_X : %d", (int)qnode->robot0.x);
   ui->ROBOT_X_value->setText(TEXT);
-  sprintf(TEXT, "ROBOT_Y : %d", (int)qnode->localMSG.robot_y);
+  sprintf(TEXT, "ROBOT_Y : %d", (int)qnode->robot0.y);
   ui->ROBOT_Y_value->setText(TEXT);
   sprintf(TEXT, "IK_X : %d", (int)qnode->robot0.now_ik_param_x);
   ui->IK_X_value->setText(TEXT);

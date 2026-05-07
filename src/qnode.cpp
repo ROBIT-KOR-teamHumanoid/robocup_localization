@@ -3,7 +3,7 @@
  *
  * @brief Ros communication central!
  *
- * @date August 2024
+ * @date May 2026
  **/
 
 /*****************************************************************************
@@ -11,79 +11,7 @@
 *****************************************************************************/
 
 #include "../include/robocup_localization/qnode.hpp"
-
-#include "../robot_config.h"
 #include "../include/field_coordinate/field_coordinate.hpp"
-
-/*****************************************************************************
-** ROBOT class implementations
-*****************************************************************************/
-
-ROBOT::ROBOT() {}
-
-ROBOT::ROBOT(float x, float y)
-{
-  this->x = x;
-  this->y = y;
-}
-
-void ROBOT::create_time_stamp(double Xmoved, double Ymoved)
-{
-  // PRE CONDITION : Xmoved, Ymoved
-  // POST CONDITION : TIME_STAMP
-  // PURPOSE : 로봇에 Xmoved 혹은 Ymoved값이 들어오면 이동 경로를 저장
-
-  if (Xmoved != 0 || Ymoved != 0)
-  {
-    time_t timer;
-    timer = time(NULL);
-    point.TIME = timer;
-    point.X = this->x;
-    point.Y = this->y;
-    TIME_STAMP.push_back(point);
-    if (TIME_STAMP.size() > 10)
-    {
-      TIME_STAMP.erase(TIME_STAMP.begin());
-    }
-  }
-  else
-  {
-    TIME_STAMP.clear();
-  }
-}
-
-void ROBOT::move(double Xmoved, double Ymoved)
-{
-  // PRE CONDITION : Xmoved, Ymoved
-  // POST CONDITION : x, y
-  // PURPOSE : 로봇에 Xmoved 혹은 Ymoved값이 들어오면 해당 값으로 이동
-
-  create_time_stamp(Xmoved, Ymoved);
-
-  this->now_ik_param_x = Xmoved;
-  this->now_ik_param_y = Ymoved;
-  if (Xmoved > 0)
-    Xmoved *= odom_fx;
-  else
-    Xmoved *= odom_bx;
-
-  if (Ymoved > 0)
-    Ymoved *= odom_ly;
-  else
-    Ymoved *= odom_ry;
-
-  this->x += Xmoved * cos((this->z + 90) * DEG2RAD) - Ymoved * sin((this->z + 90) * DEG2RAD);
-  this->y -= Xmoved * sin((this->z + 90) * DEG2RAD) + Ymoved * cos((this->z + 90) * DEG2RAD);
-
-  if (this->x < FieldCoord::toPixelX(-FieldCoord::A / 2))
-    this->x = FieldCoord::toPixelX(-FieldCoord::A / 2);
-  if (this->x > FieldCoord::toPixelX(FieldCoord::A / 2))
-    this->x = FieldCoord::toPixelX(FieldCoord::A / 2);
-  if (this->y < FieldCoord::toPixelY(FieldCoord::B / 2))
-    this->y = FieldCoord::toPixelY(FieldCoord::B / 2);
-  if (this->y > FieldCoord::toPixelY(-FieldCoord::B / 2))
-    this->y = FieldCoord::toPixelY(-FieldCoord::B / 2);
-}
 
 /*****************************************************************************
 ** QNode
@@ -95,31 +23,7 @@ QNode::QNode(int argc, char **argv)
   node = rclcpp::Node::make_shared("robocup_localization");
   this->start();
 
-  node->declare_parameter("robot_feature", "kids");
-  node->declare_parameter("topic.imu_sub_topic", "Imu");
-  node->declare_parameter("topic.vision_sub_topic", "vision");
-  node->declare_parameter("topic.vision_feature_sub_topic", "vision_feature");
-  node->declare_parameter("topic.ik_sub_topic", "ikcoordinate");
-  node->declare_parameter("topic.game_control_sub_topic", "gamecontroldata");
-  node->declare_parameter("topic.udp_sub_topic", "udp");
-  node->declare_parameter("topic.master_sub_topic", "master2local");
-  node->declare_parameter("topic.local_pub_topic", "localization");
-  node->declare_parameter("particle_filter.weight_update_threshold", 50.0);
-  node->declare_parameter("particle_filter.particle_nums", particle_num);
-  node->declare_parameter("particle_filter.noise_enable", true);
-  node->declare_parameter("setup_mode.Soccer_mode", true);
-  node->declare_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver", false);
-  node->declare_parameter("setup_mode.Technical_Challenge_mode.Local_helper", false);
-  node->declare_parameter("setup_mode.Technical_Challenge_mode.Local_kicker", false);
-  node->declare_parameter("setup_mode.Technical_Challenge_mode.High_kicker", false);
-  auto imu_topic = node->get_parameter("topic.imu_sub_topic").as_string();
-  auto vision_topic = node->get_parameter("topic.vision_sub_topic").as_string();
-  auto vision_feature_topic = node->get_parameter("topic.vision_feature_sub_topic").as_string();
-  auto ik_topic = node->get_parameter("topic.ik_sub_topic").as_string();
-  auto game_control_topic = node->get_parameter("topic.game_control_sub_topic").as_string();
-  auto udp_topic = node->get_parameter("topic.udp_sub_topic").as_string();
-  auto master_topic = node->get_parameter("topic.master_sub_topic").as_string();
-  auto local_pub_topic = node->get_parameter("topic.local_pub_topic").as_string();
+  getParams();
 
   imu_sub_ = node->create_subscription<humanoid_interfaces::msg::ImuMsg>(imu_topic, rclcpp::QoS(rclcpp::KeepLast(1)).reliable().best_effort(), std::bind(&QNode::imuCallback, this, std::placeholders::_1));
   vision_sub_ = node->create_subscription<robocup_vision::msg::Robocupvision>(vision_topic, 1, std::bind(&QNode::visionCallback, this, std::placeholders::_1));
@@ -132,20 +36,7 @@ QNode::QNode(int argc, char **argv)
   localization_pub_ = node->create_publisher<robocup_localization::msg::RobocupLocalization>(local_pub_topic, 5);
   pan_angle_comp_pub_ = node->create_publisher<robocup_vision::msg::PanAngleCompensation>("/pan_angle_compensation", 5);
 
-  // adult / kids different config
-  robot_feature = node->get_parameter("robot_feature").as_string();
-
-  weight_update_threshold = node->get_parameter("particle_filter.weight_update_threshold").as_double();
-  particle_num = node->get_parameter("particle_filter.particle_nums").as_int();
-  noise_enable_ = node->get_parameter("particle_filter.noise_enable").as_bool();
-  pt.resize(particle_num);
-  soccer_mode_          = node->get_parameter("setup_mode.Soccer_mode").as_bool();
-  corner_kick_receiver_ = node->get_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver").as_bool();
-  local_helper_         = node->get_parameter("setup_mode.Technical_Challenge_mode.Local_helper").as_bool();
-  local_kicker_         = node->get_parameter("setup_mode.Technical_Challenge_mode.Local_kicker").as_bool();
-  high_kicker_          = node->get_parameter("setup_mode.Technical_Challenge_mode.High_kicker").as_bool();
-
-  if (local_helper_||corner_kick_receiver_)
+  if (local_helper_ || corner_kick_receiver_)
     technical_challenge_pub_ = node->create_publisher<robocup_localization::msg::TechnicalChallenge>("/technical_challenge", 5);
 
   if (local_kicker_)
@@ -156,6 +47,8 @@ QNode::QNode(int argc, char **argv)
   {
     // 원할 때 사용
   }
+
+  loop_hz = corner_kick_receiver_ ? 50 : 20;
 
   if (soccer_mode_)
     startMclProcessing();
@@ -204,7 +97,7 @@ void QNode::mclProcessing()
 
 void QNode::run()
 {
-  int loop_hz = corner_kick_receiver_ ? 50 : 20;
+
   rclcpp::WallRate loop_rate(loop_hz);
   while (rclcpp::ok())
   {
@@ -340,16 +233,22 @@ void QNode::imuCallback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg)
   {
     switch (local_helper_dir)
     {
-      case 0: robot0.z = -90.0; break;
-      case 1: robot0.z =  90.0; break;
+    case 0:
+      robot0.z = -90.0;
+      break;
+    case 1:
+      robot0.z = 90.0;
+      break;
     }
     return;
   }
 
   double raw_yaw = msg->yaw;
   ik_d_yaw = raw_yaw - robot0.z;
-  if (ik_d_yaw >  180.0) ik_d_yaw -= 360.0;
-  if (ik_d_yaw < -180.0) ik_d_yaw += 360.0;
+  if (ik_d_yaw > 180.0)
+    ik_d_yaw -= 360.0;
+  if (ik_d_yaw < -180.0)
+    ik_d_yaw += 360.0;
   robot0.z = raw_yaw;
 }
 
@@ -376,7 +275,6 @@ void QNode::visionCallback(const robocup_vision::msg::Robocupvision::SharedPtr m
     visionMSG.ROBOT_VEC_Y.push_back(msg->robot_vec_y[i]);
   }
   visionMSG.Ball_speed_level = msg->ball_speed_level;
-  visionMSG.Scan_mode = msg->scan_mode;
   visionMSG.flag_pan = msg->flag_pan;
   if (visionMSG.Ball_speed_level > 150)
   {
@@ -448,8 +346,10 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
         pt[i].y += Likelihood.gaussianRandom(0, 0.1);
       }
       pt[i].z += ik_d_yaw;
-      if (pt[i].z >  180.0) pt[i].z -= 360.0;
-      if (pt[i].z < -180.0) pt[i].z += 360.0;
+      if (pt[i].z > 180.0)
+        pt[i].z -= 360.0;
+      if (pt[i].z < -180.0)
+        pt[i].z += 360.0;
     }
   }
   else
@@ -463,10 +363,10 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
       if (noise_enable_)
       {
         ik_trans_dev = ALPHA3 * ik_trans + ALPHA4 * fabs(ik_rot1);
-        ik_rot1_dev  = ALPHA1 * fabs(ik_rot1) + ALPHA2 * ik_trans;
+        ik_rot1_dev = ALPHA1 * fabs(ik_rot1) + ALPHA2 * ik_trans;
 
         double n_trans = ik_trans + Likelihood.gaussianRandom(0, ik_trans_dev);
-        double n_dir   = world_dir + Likelihood.gaussianRandom(0, ik_rot1_dev);
+        double n_dir = world_dir + Likelihood.gaussianRandom(0, ik_rot1_dev);
 
         pt[i].x += n_trans * cos(n_dir);
         pt[i].y += n_trans * sin(n_dir);
@@ -481,13 +381,19 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
         pt[i].z += ik_d_yaw;
       }
 
-      if (pt[i].z >  180.0) pt[i].z -= 360.0;
-      if (pt[i].z < -180.0) pt[i].z += 360.0;
+      if (pt[i].z > 180.0)
+        pt[i].z -= 360.0;
+      if (pt[i].z < -180.0)
+        pt[i].z += 360.0;
 
-      if (pt[i].x < IK_PX_MIN_X) pt[i].x = IK_PX_MIN_X;
-      if (pt[i].x > IK_PX_MAX_X) pt[i].x = IK_PX_MAX_X;
-      if (pt[i].y < IK_PX_MIN_Y) pt[i].y = IK_PX_MIN_Y;
-      if (pt[i].y > IK_PX_MAX_Y) pt[i].y = IK_PX_MAX_Y;
+      if (pt[i].x < IK_PX_MIN_X)
+        pt[i].x = IK_PX_MIN_X;
+      if (pt[i].x > IK_PX_MAX_X)
+        pt[i].x = IK_PX_MAX_X;
+      if (pt[i].y < IK_PX_MIN_Y)
+        pt[i].y = IK_PX_MIN_Y;
+      if (pt[i].y > IK_PX_MAX_Y)
+        pt[i].y = IK_PX_MAX_Y;
     }
   }
 }
@@ -606,13 +512,22 @@ void QNode::masterCallback(const humanoid_interfaces::msg::Master2localization::
   // PRE CONDITION : msg(master)
   // POST CONDITION : master_target_N
   // purpose : 마스터에서 받은 타겟 좌표 데이터 적용
-  
+
   masterMSG.master_target_x = msg->targetx;
   masterMSG.master_target_y = msg->targety;
   masterMSG.master_best_position_attack_x = msg->bestposition_x;
   masterMSG.master_best_position_attack_y = msg->bestposition_y;
   masterMSG.master_best_position_defend_x = msg->defendposition_x;
   masterMSG.master_best_position_defend_y = msg->defendposition_y;
+}
+
+void QNode::blindRobotCallback(const robocup_localization::msg::TechnicalChallenge::SharedPtr msg)
+{
+  if (msg->blind_robot_x == 0.0 && msg->blind_robot_y == 0.0)
+    return;
+  std::lock_guard<std::mutex> lock(robot0_mutex);
+  robot0.x = static_cast<float>(msg->blind_robot_x);
+  robot0.y = static_cast<float>(msg->blind_robot_y);
 }
 
 void QNode::yaw_compensation()
@@ -681,20 +596,25 @@ void QNode::yaw_compensation()
     }
     yaw_correction_cooldown_ = 100; // 5초 쿨다운
   }
-   goal_post_pan_deg_buf_.clear();
+  goal_post_pan_deg_buf_.clear();
 }
 
-void QNode::publish_localization()
+void QNode::publish_localization(
+    float ball_x, float ball_y,
+    float ball_speed_x, float ball_speed_y,
+    float robot_x, float robot_y,
+    const std::vector<float> &obstacles_x,
+    const std::vector<float> &obstacles_y)
 {
   robocup_localization::msg::RobocupLocalization msg;
-  msg.ball_x       = localMSG.ball_x;
-  msg.ball_y       = localMSG.ball_y;
-  msg.ball_speed_x = localMSG.ball_speed_x;
-  msg.ball_speed_y = localMSG.ball_speed_y;
-  msg.robot_x      = localMSG.robot_x;
-  msg.robot_y      = localMSG.robot_y;
-  msg.obstacles_x.assign(localMSG.obstacles_x.begin(), localMSG.obstacles_x.end());
-  msg.obstacles_y.assign(localMSG.obstacles_y.begin(), localMSG.obstacles_y.end());
+  msg.ball_x = ball_x;
+  msg.ball_y = ball_y;
+  msg.ball_speed_x = ball_speed_x;
+  msg.ball_speed_y = ball_speed_y;
+  msg.robot_x = robot_x;
+  msg.robot_y = robot_y;
+  msg.obstacles_x.assign(obstacles_x.begin(), obstacles_x.end());
+  msg.obstacles_y.assign(obstacles_y.begin(), obstacles_y.end());
   localization_pub_->publish(msg);
 }
 
@@ -711,16 +631,7 @@ void QNode::publish_technical_challenge()
     return;
   robocup_localization::msg::TechnicalChallenge msg;
   msg.ball_in_approach = technical_challengeMSG.ball_in_approach;
-  msg.blind_robot_x    = technical_challengeMSG.blind_robot_x;
-  msg.blind_robot_y    = technical_challengeMSG.blind_robot_y;
+  msg.blind_robot_x = technical_challengeMSG.blind_robot_x;
+  msg.blind_robot_y = technical_challengeMSG.blind_robot_y;
   technical_challenge_pub_->publish(msg);
-}
-
-void QNode::blindRobotCallback(const robocup_localization::msg::TechnicalChallenge::SharedPtr msg)
-{
-  if (msg->blind_robot_x == 0.0 && msg->blind_robot_y == 0.0)
-    return;
-  std::lock_guard<std::mutex> lock(robot0_mutex);
-  robot0.x = static_cast<float>(msg->blind_robot_x);
-  robot0.y = static_cast<float>(msg->blind_robot_y);
 }

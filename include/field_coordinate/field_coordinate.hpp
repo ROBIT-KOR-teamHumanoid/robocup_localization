@@ -34,12 +34,12 @@ namespace FieldCoord {
   // S-Field 
   constexpr double A      = 9.0;   // 필드 길이 (Field length)
   constexpr double B      = 6.0;   // 필드 너비 (Field width)
-  constexpr double C      = 1.0;   // 골 깊이   (Goal depth)
-  constexpr double D      = 2.6;   // 골 너비   (Goal width)
+  constexpr double C      = 0.7;   // 골 깊이   (Goal depth)
+  constexpr double D      = 1.8;   // 골 너비   (Goal width)
   constexpr double E      = 1.0;   // 골 에어리어 길이 (Goal area length)
   constexpr double F      = 3.0;   // 골 에어리어 너비 (Goal area width)
   constexpr double G      = 2.0;   // 페널티 에어리어 길이 (Penalty area length)
-  constexpr double H      = 5.0;   // 페널티 에어리어 너비 (Penalty area width), 
+  constexpr double H      = 4.0;   // 페널티 에어리어 너비 (Penalty area width), 
   constexpr double I_DIST = 1.5;   // 페널티 마크 거리 (Penalty mark distance)
   constexpr double J      = 1.5;   // 센터 서클 지름 (Center circle diameter)
   constexpr double K      = 1.0;   // 보더 스트립 너비 (Border strip width, min)
@@ -68,15 +68,15 @@ namespace FieldCoord {
   // L-Field
   constexpr double A      = 22.0;
   constexpr double B      = 14.0;
-  constexpr double C      = 2.0;  
-  constexpr double D      = 3.1;  
+  constexpr double C      = 1.0;  
+  constexpr double D      = 2.6;  
   constexpr double E      = 1.0;
   constexpr double F      = 5.0;
   constexpr double G      = 3.5;
   constexpr double H      = 7.0;
   constexpr double I_DIST = 2.5;
   constexpr double J      = 4.0;
-  constexpr double K      = 2.4; // 아무나 수정좀해주라  이거는 필드 크기에 따라 보정값이 달라질 수 있음. 실제로는 1.0m인데 맵 뷰에서 1.0m보다 더 크게 보이는 경우 보정값을 1.0보다 크게 설정하여 시각적으로 1.0m에 맞게 보이도록 조정
+  constexpr double K      = 1.0; // 아무나 수정좀해주라  이거는 필드 크기에 따라 보정값이 달라질 수 있음. 실제로는 1.0m인데 맵 뷰에서 1.0m보다 더 크게 보이는 경우 보정값을 1.0보다 크게 설정하여 시각적으로 1.0m에 맞게 보이도록 조정
   constexpr double L_ARC  = 1.0;
   constexpr double LINE_W = 0.12;
   constexpr double MARK_SZ= 0.15;
