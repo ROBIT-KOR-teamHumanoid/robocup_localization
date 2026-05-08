@@ -190,8 +190,16 @@ void MainWindow::main()
   std::vector<float> obs_x, obs_y;
   for (const auto &obs : qnode->obstacles)
   {
-    obs_x.push_back(obs.x);
-    obs_y.push_back(obs.y);
+    if (obs.nocnt == 0)
+    {
+      obs_x.push_back(obs.x);
+      obs_y.push_back(obs.y);
+    }
+    else
+    {
+      obs_x.push_back(0.0f);
+      obs_y.push_back(0.0f);
+    }
   }
   for (const auto &obs : qnode->debug_obstacles)
   {
