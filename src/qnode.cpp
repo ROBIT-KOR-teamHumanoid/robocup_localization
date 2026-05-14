@@ -202,7 +202,7 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
                            !msg->t_confidence.empty() ||
                            !msg->cross_confidence.empty();
 
-  if (soccer_mode_ && !local_helper_ && has_real_features && !Likelihood.vision_point_vect.empty() && visionMSG.flag_pan == 0)
+  if (soccer_mode_ && !local_helper_ && has_real_features && !Likelihood.vision_point_vect.empty() && visionMSG.flag_pan == 0 && gameMSG.state == 3)
   {
     // RCLCPP_INFO(node->get_logger(),
     //   "[OBS] vect=%zu (L=%d T=%d X=%d) total_cnt=%d",
