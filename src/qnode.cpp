@@ -218,6 +218,12 @@ void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeatur
     }
     mcl_cv_.notify_one();
   }
+  else
+  {
+    Likelihood.vision_point_vect.clear();
+    vision_data_cnt  = 0;
+    vision_data_size = 0;
+  }
 }
 
 void QNode::imuCallback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg)
