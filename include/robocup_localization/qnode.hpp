@@ -26,9 +26,9 @@
 #include <condition_variable>
 
 #include "humanoid_interfaces/msg/imu_msg.hpp"
-#include "robocup_vision/msg/robocupvision.hpp"
-#include "robocup_vision/msg/robocupvisionfeature.hpp"
-#include "robocup_vision/msg/pan_angle_compensation.hpp"
+#include "vision_interfaces/msg/robocupvision.hpp"
+#include "vision_interfaces/msg/robocupvisionfeature.hpp"
+#include "vision_interfaces/msg/pan_angle_compensation.hpp"
 #include "humanoid_interfaces/msg/ik_coord_msg.hpp"
 
 #include "robocup_localization/msg/robocup_localization.hpp"
@@ -217,8 +217,8 @@ private:
   std::shared_ptr<rclcpp::Node> node;
 
   void imuCallback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg);
-  void visionCallback(const robocup_vision::msg::Robocupvision::SharedPtr msg);
-  void visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeature::SharedPtr msg);
+  void visionCallback(const vision_interfaces::msg::Robocupvision::SharedPtr msg);
+  void visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfeature::SharedPtr msg);
   void ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg);
   void gameControlCallback(const gamecontroller::msg::Gamecontroldata::SharedPtr msg);
   void udpCallback(const humanoid_interfaces::msg::Udp2master::SharedPtr msg);
@@ -227,15 +227,15 @@ private:
   void yaw_compensation();
 
   rclcpp::Subscription<humanoid_interfaces::msg::ImuMsg>::SharedPtr imu_sub_;
-  rclcpp::Subscription<robocup_vision::msg::Robocupvision>::SharedPtr vision_sub_;
-  rclcpp::Subscription<robocup_vision::msg::Robocupvisionfeature>::SharedPtr vision_feature_sub_;
+  rclcpp::Subscription<vision_interfaces::msg::Robocupvision>::SharedPtr vision_sub_;
+  rclcpp::Subscription<vision_interfaces::msg::Robocupvisionfeature>::SharedPtr vision_feature_sub_;
   rclcpp::Subscription<humanoid_interfaces::msg::IkCoordMsg>::SharedPtr ik_sub_;
   rclcpp::Subscription<gamecontroller::msg::Gamecontroldata>::SharedPtr game_control_sub_;
   rclcpp::Subscription<humanoid_interfaces::msg::Udp2master>::SharedPtr udp_sub_;
   rclcpp::Subscription<humanoid_interfaces::msg::Master2localization>::SharedPtr master_sub_;
   rclcpp::Subscription<robocup_localization::msg::TechnicalChallenge>::SharedPtr blind_robot_sub_;
 
-  rclcpp::Publisher<robocup_vision::msg::PanAngleCompensation>::SharedPtr pan_angle_comp_pub_;
+  rclcpp::Publisher<vision_interfaces::msg::PanAngleCompensation>::SharedPtr pan_angle_comp_pub_;
 
   int yaw_correction_cooldown_ = 100;
   int imu_ignore_count_ = 0;

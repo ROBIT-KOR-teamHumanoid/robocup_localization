@@ -26,15 +26,15 @@ QNode::QNode(int argc, char **argv)
   getParams();
 
   imu_sub_ = node->create_subscription<humanoid_interfaces::msg::ImuMsg>(imu_topic, rclcpp::QoS(rclcpp::KeepLast(1)).reliable().best_effort(), std::bind(&QNode::imuCallback, this, std::placeholders::_1));
-  vision_sub_ = node->create_subscription<robocup_vision::msg::Robocupvision>(vision_topic, 1, std::bind(&QNode::visionCallback, this, std::placeholders::_1));
-  vision_feature_sub_ = node->create_subscription<robocup_vision::msg::Robocupvisionfeature>(vision_feature_topic, 4, std::bind(&QNode::visionFeatureCallback, this, std::placeholders::_1));
+  vision_sub_ = node->create_subscription<vision_interfaces::msg::Robocupvision>(vision_topic, 1, std::bind(&QNode::visionCallback, this, std::placeholders::_1));
+  vision_feature_sub_ = node->create_subscription<vision_interfaces::msg::Robocupvisionfeature>(vision_feature_topic, 4, std::bind(&QNode::visionFeatureCallback, this, std::placeholders::_1));
   ik_sub_ = node->create_subscription<humanoid_interfaces::msg::IkCoordMsg>(ik_topic, 1, std::bind(&QNode::ikCallback, this, std::placeholders::_1));
   game_control_sub_ = node->create_subscription<gamecontroller::msg::Gamecontroldata>(game_control_topic, 5, std::bind(&QNode::gameControlCallback, this, std::placeholders::_1));
   udp_sub_ = node->create_subscription<humanoid_interfaces::msg::Udp2master>(udp_topic, 5, std::bind(&QNode::udpCallback, this, std::placeholders::_1));
   master_sub_ = node->create_subscription<humanoid_interfaces::msg::Master2localization>(master_topic, 5, std::bind(&QNode::masterCallback, this, std::placeholders::_1));
 
   localization_pub_ = node->create_publisher<robocup_localization::msg::RobocupLocalization>(local_pub_topic, 5);
-  pan_angle_comp_pub_ = node->create_publisher<robocup_vision::msg::PanAngleCompensation>("/pan_angle_compensation", 5);
+  pan_angle_comp_pub_ = node->create_publisher<vision_interfaces::msg::PanAngleCompensation>("/pan_angle_compensation", 5);
 
   if (local_helper_ || corner_kick_receiver_)
     technical_challenge_pub_ = node->create_publisher<robocup_localization::msg::TechnicalChallenge>("/technical_challenge", 5);
@@ -109,7 +109,7 @@ void QNode::run()
   Q_EMIT rosShutDown();
 }
 
-void QNode::visionFeatureCallback(const robocup_vision::msg::Robocupvisionfeature::SharedPtr msg)
+void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfeature::SharedPtr msg)
 {
   std::lock_guard<std::mutex> lock(vision_mutex);
 
@@ -258,7 +258,7 @@ void QNode::imuCallback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg)
   robot0.z = raw_yaw;
 }
 
-void QNode::visionCallback(const robocup_vision::msg::Robocupvision::SharedPtr msg)
+void QNode::visionCallback(const vision_interfaces::msg::Robocupvision::SharedPtr msg)
 {
   // PRE CONDITION : msg(vision)
   // POST CONDITION : Ball_cam_N, Ball_2d_N, Ball_D, PAN, TILT, Ball_speed_N, ROBOT_VEC_N, Ball_speed_level
@@ -626,7 +626,7 @@ void QNode::publish_localization(
 
 void QNode::publish_pan_comp()
 {
-  robocup_vision::msg::PanAngleCompensation msg;
+  vision_interfaces::msg::PanAngleCompensation msg;
   msg.target_yaw_deg = panCompMSG.target_yaw_deg;
   pan_angle_comp_pub_->publish(msg);
 }
