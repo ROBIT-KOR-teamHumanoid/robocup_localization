@@ -45,7 +45,7 @@ QNode::QNode(int argc, char **argv)
 
   if (robot_feature == "adult")
   {
-    // 원할 때 사용
+    Likelihood.filter.OBS_FILTER_DIST_M = 999999.0; // 관측 pre-filter 거리 임계값 false
   }
 
   loop_hz = corner_kick_receiver_ ? 50 : 20;

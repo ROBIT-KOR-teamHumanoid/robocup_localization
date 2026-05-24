@@ -45,7 +45,7 @@ public:
     static constexpr double BEARING_MAX_RAD   = M_PI / 9.0;  // 20°  
 
     // pre-filter 거리 임계값 (미터). 가장 가까운 랜드마크가 이 값 초과이면 관측 제거.
-    static constexpr double OBS_FILTER_DIST_M = 1.0;
+    double OBS_FILTER_DIST_M = 1.0;
 
     static constexpr double LARGE_DIST        = 99999999.0;
 

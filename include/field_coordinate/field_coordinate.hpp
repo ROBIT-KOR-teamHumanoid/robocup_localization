@@ -76,7 +76,7 @@ namespace FieldCoord {
   constexpr double H      = 7.0;
   constexpr double I_DIST = 2.5;
   constexpr double J      = 4.0;
-  constexpr double K      = 1.0; // 아무나 수정좀해주라  이거는 필드 크기에 따라 보정값이 달라질 수 있음. 실제로는 1.0m인데 맵 뷰에서 1.0m보다 더 크게 보이는 경우 보정값을 1.0보다 크게 설정하여 시각적으로 1.0m에 맞게 보이도록 조정
+  constexpr double K      = 1.0; 
   constexpr double L_ARC  = 1.0;
   constexpr double LINE_W = 0.12;
   constexpr double MARK_SZ= 0.15;
