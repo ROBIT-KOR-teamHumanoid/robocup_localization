@@ -7,7 +7,7 @@
 //
 // RoboCup 필드 치수 및 특징점 좌표 정의
 //
-// 유지보수:
+// 
 //   robot_config.h 에서 아래 중 하나만 활성화
 //
 //     2026 RoboCup 규정을 기준으로 함
@@ -18,11 +18,6 @@
 //   필드 좌표 - 원점: 필드 중앙, x: 오른쪽(+), y: 위쪽(+), 단위: 미터
 //   픽셀 좌표 - 원점: 이미지 좌상단, x: 오른쪽(+), y: 아래쪽(+)
 //
-// 특징점 총 27개:
-//   ㄱ-shape (L) : 12개  (인덱스 0~11)
-//   T-shape      : 10개  (인덱스 12~21)
-//   X-shape      :  3개  (인덱스 22~24)
-//   페널티 마크  :  2개  (인덱스 25~26)
 // ============================================================
 
 namespace FieldCoord {
@@ -61,7 +56,7 @@ namespace FieldCoord {
   constexpr double J      = 3.0;
   constexpr double K      = 1.0;
   constexpr double L_ARC  = 0.5;
-  constexpr double LINE_W = 0.05;
+  constexpr double LINE_W = 0.12;
   constexpr double MARK_SZ= 0.10;
 
 #elif defined(FIELD_LARGE)
@@ -224,9 +219,9 @@ constexpr FeaturePoint ALL_POINTS[28] = {
 constexpr int FEATURE_POINT_COUNT = 28;
 
 // ============================================================
-// 존별 랜드마크 인덱스 테이블 (compile-time 자동 생성)
+// 존별 랜드마크 인덱스 테이블 
 //
-// 필드 크기(FIELD_SMALL/MIDDLE/LARGE)가 바뀌어도 자동으로 재계산됨
+// 필드 크기(FIELD_SMALL/MIDDLE/LARGE)가 바뀌어도 자동으로 재계산
 // ============================================================
 
 /// ALL_POINTS[i]가 속하는 존 번호 반환 (1~9, 범위 밖은 0)
