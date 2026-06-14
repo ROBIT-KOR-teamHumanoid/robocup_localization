@@ -56,7 +56,7 @@ namespace FieldCoord {
   constexpr double J      = 3.0;
   constexpr double K      = 1.0;
   constexpr double L_ARC  = 0.5;
-  constexpr double LINE_W = 0.12;
+  constexpr double LINE_W = 0.09;
   constexpr double MARK_SZ= 0.10;
 
 #elif defined(FIELD_LARGE)

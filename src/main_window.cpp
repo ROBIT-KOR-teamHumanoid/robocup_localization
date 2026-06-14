@@ -225,7 +225,9 @@ void MainWindow::Print_Screen_Ball()
   QBrush redBrush(Qt::red);
   QBrush yellowBrush(Qt::yellow);
   QBrush blueBrush(Qt::blue);
-  if (qnode->visionMSG.Ball_2d_X != 0 || qnode->visionMSG.Ball_2d_Y != 0)
+  bool ball_in_range = (qnode->ball.x >= 80 && qnode->ball.x <= 1020 &&
+                        qnode->ball.y >= 80 && qnode->ball.y <= 720);
+  if (ball_in_range && (qnode->visionMSG.Ball_2d_X != 0 || qnode->visionMSG.Ball_2d_Y != 0))
   {
     scene->addEllipse(cvt_Print_xy(qnode->ball.x) - 5,
                       cvt_Print_xy(qnode->ball.y) - 5, 11, 11, blackPen, redBrush);
@@ -234,7 +236,7 @@ void MainWindow::Print_Screen_Ball()
                    cvt_Print_xy(qnode->ball.y + qnode->ball.speed_y * qnode->visionMSG.Ball_speed_level),
                    blackPen);
   }
-  else if (qnode->ball.x != 0 || qnode->ball.y != 0)
+  else if (ball_in_range && (qnode->ball.x != 0 || qnode->ball.y != 0))
   {
     scene->addEllipse(cvt_Print_xy(qnode->ball.x) - 5,
                       cvt_Print_xy(qnode->ball.y) - 5, 11, 11, blackPen, yellowBrush);
@@ -346,24 +348,37 @@ void MainWindow::select_ball()
   // 좌표로 변환
   if (qnode->visionMSG.Ball_2d_X != 0 || qnode->visionMSG.Ball_2d_Y != 0)
   {
-    qnode->ball.noballcnt = 0;
-    qnode->ball.x =
+    int computed_x =
         qnode->robot0.x + (-1) * (qnode->visionMSG.Ball_2d_X * FieldCoord::MM2PX *
                                       cos((qnode->robot0.z) * M_PI / 180) +
                                   qnode->visionMSG.Ball_2d_Y * FieldCoord::MM2PX *
                                       sin((qnode->robot0.z) * M_PI / 180));
-    qnode->ball.y =
+    int computed_y =
         qnode->robot0.y +
         (qnode->visionMSG.Ball_2d_X * FieldCoord::MM2PX * sin((qnode->robot0.z) * M_PI / 180) -
          qnode->visionMSG.Ball_2d_Y * FieldCoord::MM2PX * cos((qnode->robot0.z) * M_PI / 180));
-    qnode->ball.speed_x =
-        (qnode->visionMSG.Ball_speed_X) *
-            cos((-1) * qnode->robot0.z * DEG2RAD) -
-        (qnode->visionMSG.Ball_speed_Y) * sin((-1) * qnode->robot0.z * DEG2RAD);
-    qnode->ball.speed_y =
-        (qnode->visionMSG.Ball_speed_X) *
-            sin((-1) * qnode->robot0.z * DEG2RAD) +
-        (qnode->visionMSG.Ball_speed_Y) * cos((-1) * qnode->robot0.z * DEG2RAD);
+
+    if (computed_x >= 80 && computed_x <= 1020 &&
+        computed_y >= 80 && computed_y <= 720)
+    {
+      qnode->ball.noballcnt = 0;
+      qnode->ball.x = computed_x;
+      qnode->ball.y = computed_y;
+      qnode->ball.speed_x =
+          (qnode->visionMSG.Ball_speed_X) *
+              cos((-1) * qnode->robot0.z * DEG2RAD) -
+          (qnode->visionMSG.Ball_speed_Y) * sin((-1) * qnode->robot0.z * DEG2RAD);
+      qnode->ball.speed_y =
+          (qnode->visionMSG.Ball_speed_X) *
+              sin((-1) * qnode->robot0.z * DEG2RAD) +
+          (qnode->visionMSG.Ball_speed_Y) * cos((-1) * qnode->robot0.z * DEG2RAD);
+    }
+    else
+    {
+      qnode->ball.noballcnt += 1;
+      if (qnode->ball.noballcnt >= 300)
+        qnode->ball.noballcnt = 300;
+    }
   }
   // 데이터를 받지 않으면 데이터 비활성화
   else
@@ -1144,9 +1159,9 @@ void MainWindow::on_btn_set_7_clicked()
   }
   else if(qnode->local_helper_)
   {
-    qnode->robot0.z = -90.0;
+    qnode->robot0.z = 180.0;
     qnode->local_helper_dir = 0;
-    setRobotPos(qnode, toPixelX(-A / 2), toPixelY(F / 2 + (H - F) / 4), 0);
+    setRobotPos(qnode, toPixelX(-A / 2 + E + (G - E) / 2), toPixelY(F / 2), 0);
   }
 }
 
@@ -1160,9 +1175,9 @@ void MainWindow::on_btn_set_8_clicked()
   }
   else if(qnode->local_helper_)
   {
-    qnode->robot0.z = 90.0;
+    qnode->robot0.z = 0.0;
     qnode->local_helper_dir = 1;
-    setRobotPos(qnode, toPixelX(A / 2), toPixelY(-F / 2 - (H - F) / 4), 0);
+    setRobotPos(qnode, toPixelX(A / 2 - E - (G - E) / 2), toPixelY(-F / 2), 0);
   }
 }
 
