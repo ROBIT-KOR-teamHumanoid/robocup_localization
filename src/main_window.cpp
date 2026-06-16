@@ -227,7 +227,8 @@ void MainWindow::Print_Screen_Ball()
   QBrush blueBrush(Qt::blue);
   bool ball_in_range = (qnode->ball.x >= 80 && qnode->ball.x <= 1020 &&
                         qnode->ball.y >= 80 && qnode->ball.y <= 720);
-  if (ball_in_range && (qnode->visionMSG.Ball_2d_X != 0 || qnode->visionMSG.Ball_2d_Y != 0))
+  if (ball_in_range && (qnode->visionMSG.Ball_2d_X != 0 || qnode->visionMSG.Ball_2d_Y != 0)
+      && qnode->ball.noballcnt == 0)
   {
     scene->addEllipse(cvt_Print_xy(qnode->ball.x) - 5,
                       cvt_Print_xy(qnode->ball.y) - 5, 11, 11, blackPen, redBrush);
@@ -392,40 +393,45 @@ void MainWindow::select_ball()
     }
   }
 
-  double min_d = qnode->visionMSG.Ball_D /
-                 10; // 공 최종위치 판별 시 공 위치를 판별할 예외처리 변수 선언
-  if (qnode->visionMSG.Ball_D == 0)
+  // 공 감지했어도 필드 밖으로 계산된 경우(noballcnt > 0)엔 신뢰하지 않음
+  double min_d;
+  if (qnode->visionMSG.Ball_D == 0 || qnode->ball.noballcnt > 0)
   {
     min_d = 999999;
+  }
+  else
+  {
+    min_d = qnode->visionMSG.Ball_D * FieldCoord::MM2PX;
   }
   int min_i = 0;
 
   // 각 로봇에서 측정된 공 데이터를 비교하여 해당 공 데이터가 최소값일
   // 경우(측정된 로봇과 가장 가까울 경우) 해당 값 적용
-  if (min_d > qnode->ball1.d)
+  // (0,0)인 UDP 공 데이터는 공 미감지 상태이므로 제외
+  if (min_d > qnode->ball1.d && (qnode->ball1.x != 0 || qnode->ball1.y != 0))
   {
     min_d = qnode->ball1.d;
     min_i = 1;
   }
-  if (min_d > qnode->ball2.d)
+  if (min_d > qnode->ball2.d && (qnode->ball2.x != 0 || qnode->ball2.y != 0))
   {
     min_d = qnode->ball2.d;
     min_i = 2;
   }
-  if (min_d > qnode->ball3.d)
+  if (min_d > qnode->ball3.d && (qnode->ball3.x != 0 || qnode->ball3.y != 0))
   {
     min_d = qnode->ball3.d;
     min_i = 3;
   }
-  if (min_d > qnode->ball4.d)
+  if (min_d > qnode->ball4.d && (qnode->ball4.x != 0 || qnode->ball4.y != 0))
   {
     min_d = qnode->ball4.d;
     min_i = 4;
   }
-
+ 
   // 최소값인 공 데이터가 해당 로봇이 아닐때 최소값인 공 데이터 적용
   if (min_i != 0 &&
-      (qnode->ball.noballcnt == 0 || qnode->ball.noballcnt == 100))
+      (qnode->ball.noballcnt == 0 || qnode->ball.noballcnt > 100))
   {
     if (min_i == 1)
     {
