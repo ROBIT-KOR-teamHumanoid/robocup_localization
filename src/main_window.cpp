@@ -430,8 +430,10 @@ void MainWindow::select_ball()
   }
  
   // 최소값인 공 데이터가 해당 로봇이 아닐때 최소값인 공 데이터 적용
-  if (min_i != 0 &&
-      (qnode->ball.noballcnt == 0 || qnode->ball.noballcnt > 100))
+  // if (min_i != 0 &&
+  //     (qnode->ball.noballcnt == 0 || qnode->ball.noballcnt > 100))
+  
+  if (min_i != 0 && qnode->ball.noballcnt > 10)
   {
     if (min_i == 1)
     {
