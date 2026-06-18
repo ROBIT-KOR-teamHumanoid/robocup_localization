@@ -75,7 +75,7 @@ public:
     // MIN_JUMP_PX 미만이면 진동 억제를 위해 업데이트 skip.
     static constexpr double MIN_JUMP_M  = 0.07;
     static constexpr double MIN_JUMP_PX = MIN_JUMP_M * FieldCoord::PX_PER_M_X;
-    static constexpr double MAX_JUMP_M  = 0.7;
+    static constexpr double MAX_JUMP_M  = 1.7;
     static constexpr double MAX_JUMP_PX = MAX_JUMP_M * FieldCoord::PX_PER_M_X;
 
     // top-N 파티클 위치 분산 허용 한계 (픽셀). 이보다 퍼져있으면 업데이트 reject.

@@ -58,6 +58,19 @@ void Filter::setCircle(double yaw, std::vector<VISION_POINT>& vect)
     if (vect.empty())
         return;
     computeCircle(vect, 0, yaw);
+
+    // T자 특징점은 분포가 드물어 서클 범위를 추가로 확장
+    bool has_t_shape = false;
+    for (const auto& vp : vect)
+    {
+        if (vp.FEATURE_TYPE == (int)FieldCoord::T_SHAPE)
+        {
+            has_t_shape = true;
+            break;
+        }
+    }
+    if (has_t_shape)
+        CIRCLE_R += FieldCoord::T_SHAPE_CIRCLE_MARGIN_PX;
 }
 
 void Filter::checkLocalPoint(int ago_point_cnt, double yaw, std::vector<VISION_POINT>& vect)
@@ -70,6 +83,18 @@ void Filter::checkLocalPoint(int ago_point_cnt, double yaw, std::vector<VISION_P
         return;
 
     computeCircle(vect, ago_point_cnt, yaw);
+
+    bool has_t_shape = false;
+    for (int k = ago_point_cnt; k < (int)vect.size(); k++)
+    {
+        if (vect[k].FEATURE_TYPE == (int)FieldCoord::T_SHAPE)
+        {
+            has_t_shape = true;
+            break;
+        }
+    }
+    if (has_t_shape)
+        CIRCLE_R += FieldCoord::T_SHAPE_CIRCLE_MARGIN_PX;
 
     for (int i = 0; i < FieldCoord::FEATURE_POINT_COUNT; i++)
     {

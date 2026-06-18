@@ -122,6 +122,9 @@ constexpr double toFieldY(double py)
 // 파티클 필터 서클 마진 (0.5m → 픽셀)
 constexpr int CIRCLE_MARGIN_PX = static_cast<int>(0.5 * PX_PER_M_X);
 
+// T자 특징점 감지 시 추가 서클 마진 (1.5m → 픽셀)
+constexpr int T_SHAPE_CIRCLE_MARGIN_PX = static_cast<int>(1.5 * PX_PER_M_X);
+
 // mm → 맵 픽셀 변환 상수
 constexpr double MM2PX = PX_PER_M_X / 1000.0;
 
