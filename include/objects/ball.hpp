@@ -19,6 +19,7 @@ public:
     double speed_y = 0.0;
 
     int noballcnt = 0;
+    bool from_udp = false;
 
 private:
 

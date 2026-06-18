@@ -225,6 +225,7 @@ void MainWindow::Print_Screen_Ball()
   QBrush redBrush(Qt::red);
   QBrush yellowBrush(Qt::yellow);
   QBrush blueBrush(Qt::blue);
+  QBrush pinkBrush(QColor(255, 105, 180));
   bool ball_in_range = (qnode->ball.x >= 80 && qnode->ball.x <= 1020 &&
                         qnode->ball.y >= 80 && qnode->ball.y <= 720);
   if (ball_in_range && (qnode->visionMSG.Ball_2d_X != 0 || qnode->visionMSG.Ball_2d_Y != 0)
@@ -239,8 +240,12 @@ void MainWindow::Print_Screen_Ball()
   }
   else if (ball_in_range && (qnode->ball.x != 0 || qnode->ball.y != 0))
   {
-    scene->addEllipse(cvt_Print_xy(qnode->ball.x) - 5,
-                      cvt_Print_xy(qnode->ball.y) - 5, 11, 11, blackPen, yellowBrush);
+    if (qnode->ball.from_udp)
+      scene->addEllipse(cvt_Print_xy(qnode->ball.x) - 5,
+                        cvt_Print_xy(qnode->ball.y) - 5, 11, 11, blackPen, pinkBrush);
+    else
+      scene->addEllipse(cvt_Print_xy(qnode->ball.x) - 5,
+                        cvt_Print_xy(qnode->ball.y) - 5, 11, 11, blackPen, yellowBrush);
   }
   if (qnode->set_ball_flag)
   {
@@ -456,6 +461,11 @@ void MainWindow::select_ball()
       qnode->ball.y = qnode->ball4.y;
     }
     qnode->ball.noballcnt = 25;
+    qnode->ball.from_udp = true;
+  }
+  else
+  {
+    qnode->ball.from_udp = false;
   }
 
   // 공/장애물 좌표 클램핑 (필드 경계 픽셀 기준)
