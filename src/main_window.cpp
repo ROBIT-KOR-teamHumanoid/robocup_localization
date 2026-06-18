@@ -377,19 +377,19 @@ void MainWindow::select_ball()
     else
     {
       qnode->ball.noballcnt += 1;
-      if (qnode->ball.noballcnt >= 300)
-        qnode->ball.noballcnt = 300;
+      if (qnode->ball.noballcnt >= 60)
+        qnode->ball.noballcnt = 60;
     }
   }
   // 데이터를 받지 않으면 데이터 비활성화
   else
   {
     qnode->ball.noballcnt += 1;
-    if (qnode->ball.noballcnt >= 300) // 약 15초
+    if (qnode->ball.noballcnt >= 60) // 약 3초
     {
       qnode->ball.x = 0;
       qnode->ball.y = 0;
-      qnode->ball.noballcnt = 300;
+      qnode->ball.noballcnt = 60;
     }
   }
 
