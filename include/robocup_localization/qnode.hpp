@@ -152,6 +152,7 @@ public:
 
   int vision_data_cnt = 0;
   int vision_data_size = 0;
+  bool valid_observation_ = false;
 
   // callback
   int vision_callback_timer = 0;

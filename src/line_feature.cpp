@@ -16,6 +16,15 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
 {
     std::lock_guard<std::mutex> lock(qnode->vision_mutex);
 
+    if (!qnode->valid_observation_)
+    {
+        vision_point_vect.clear();
+        qnode->vision_data_cnt  = 0;
+        qnode->vision_data_size = 0;
+        return;
+    }
+    qnode->valid_observation_ = false;
+
     obs_size = (int)vision_point_vect.size();
 
     if (obs_size > 10)

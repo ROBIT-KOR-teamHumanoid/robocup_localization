@@ -212,6 +212,7 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
     //   (int)msg->cross_confidence.size(),
     //   vision_data_cnt);
     Likelihood.filter.setCircle(robot0_z, Likelihood.vision_point_vect);
+    valid_observation_ = true;
     {
       std::lock_guard<std::mutex> lock(mcl_mutex_);
       mcl_pending_ = true;
@@ -220,6 +221,7 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
   }
   else
   {
+    valid_observation_ = false;
     Likelihood.vision_point_vect.clear();
     vision_data_cnt  = 0;
     vision_data_size = 0;
