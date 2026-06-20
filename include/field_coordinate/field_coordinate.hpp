@@ -157,10 +157,10 @@ struct FeaturePoint
 
 //ㄱ-shape (L) - 12개
 // 필드 외곽 코너 4개
-constexpr FeaturePoint L00 = { -A/2,  B/2, L_SHAPE };  // 좌상단 코너
-constexpr FeaturePoint L01 = {  A/2,  B/2, L_SHAPE };  // 우상단 코너
-constexpr FeaturePoint L02 = { -A/2, -B/2, L_SHAPE };  // 좌하단 코너
-constexpr FeaturePoint L03 = {  A/2, -B/2, L_SHAPE };  // 우하단 코너
+constexpr FeaturePoint L00 = { -A/2,  B/2, L_SHAPE, false };  // 좌상단 코너
+constexpr FeaturePoint L01 = {  A/2,  B/2, L_SHAPE, false };  // 우상단 코너
+constexpr FeaturePoint L02 = { -A/2, -B/2, L_SHAPE, false };  // 좌하단 코너
+constexpr FeaturePoint L03 = {  A/2, -B/2, L_SHAPE, false };  // 우하단 코너
 // 좌측 페널티 에어리어 원거리 코너 2개
 constexpr FeaturePoint L04 = { -A/2+G,  H/2, L_SHAPE };
 constexpr FeaturePoint L05 = { -A/2+G, -H/2, L_SHAPE };
