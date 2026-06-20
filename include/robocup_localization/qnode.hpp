@@ -199,6 +199,7 @@ public:
 
   // For settings
   bool soccer_mode_ = true;
+  double foot_align_odom_scale_ = 0.3;
   bool corner_kick_receiver_ = false;
   bool local_helper_ = false;
   bool local_kicker_ = false;

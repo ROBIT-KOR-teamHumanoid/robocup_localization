@@ -15,6 +15,7 @@ void QNode::getParams()
     node->declare_parameter("particle_filter.weight_update_threshold", 50.0);
     node->declare_parameter("particle_filter.particle_nums", particle_num);
     node->declare_parameter("particle_filter.noise_enable", true);
+    node->declare_parameter("particle_filter.foot_align_odom_scale", 0.3);
     node->declare_parameter("setup_mode.Soccer_mode", true);
     node->declare_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver", false);
     node->declare_parameter("setup_mode.Technical_Challenge_mode.Local_helper", false);
@@ -35,6 +36,7 @@ void QNode::getParams()
     weight_update_threshold = node->get_parameter("particle_filter.weight_update_threshold").as_double();
     particle_num = node->get_parameter("particle_filter.particle_nums").as_int();
     noise_enable_ = node->get_parameter("particle_filter.noise_enable").as_bool();
+    foot_align_odom_scale_ = node->get_parameter("particle_filter.foot_align_odom_scale").as_double();
     pt.resize(particle_num);
     soccer_mode_ = node->get_parameter("setup_mode.Soccer_mode").as_bool();
     corner_kick_receiver_ = node->get_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver").as_bool();

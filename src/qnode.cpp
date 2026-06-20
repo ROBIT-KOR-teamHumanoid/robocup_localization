@@ -335,6 +335,12 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
     // yaw 회전 + odom 스케일이 적용된 픽셀 델타
     ik_dx = robot0.x - ik_prev_x;
     ik_dy = robot0.y - ik_prev_y;
+
+    if (masterMSG.master_move2ball_phase == "FOOT_ALIGN")
+    {
+      ik_dx *= foot_align_odom_scale_;
+      ik_dy *= foot_align_odom_scale_;
+    }
   }
 
   // rot1/trans/rot2 모션 모델
