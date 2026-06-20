@@ -821,6 +821,33 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
                    cvt_Print_xy(qnode->masterMSG.master_target_y) + 2,
                    cvt_Print_xy(qnode->robot0.x), cvt_Print_xy(qnode->robot0.y),
                    targetlinePen);
+
+    // angle_to_target 방향과 골대 라인 교차점 표시 (GO_KICK 중에만)
+    if (!qnode->masterMSG.master_move2ball_phase.empty())
+    {
+      float att = qnode->masterMSG.master_angle_to_target;
+      double theta = (270.0 - att) * DEG2RAD;
+      double dir_x = std::cos(theta);
+      double dir_y = std::sin(theta);
+
+      if (std::abs(dir_x) > 1e-6)
+      {
+        using namespace FieldCoord;
+        int goal_line_x = (dir_x > 0.0) ? toPixelX(A / 2) : toPixelX(-A / 2);
+        double t = (goal_line_x - qnode->masterMSG.master_target_x) / dir_x;
+        if (t > 0.0)
+        {
+          double aim_y_raw = qnode->masterMSG.master_target_y + t * dir_y;
+          int goal_y_min = toPixelY(D / 2);
+          int goal_y_max = toPixelY(-D / 2);
+          int aim_y = static_cast<int>(std::max((double)goal_y_min, std::min((double)goal_y_max, aim_y_raw)));
+
+          QPen aimDotPen(QColor(255, 165, 0));
+          QBrush aimDotBrush(QColor(255, 165, 0));
+          scene->addEllipse(goal_line_x - 5, aim_y - 5, 10, 10, aimDotPen, aimDotBrush);
+        }
+      }
+    }
   }
 
   // PRINT ROBOT

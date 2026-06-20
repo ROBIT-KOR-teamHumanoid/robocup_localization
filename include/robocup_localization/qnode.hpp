@@ -94,6 +94,8 @@ struct MasterMsg
   float master_best_position_attack_y = 0.0f;
   float master_best_position_defend_x = 0.0f;
   float master_best_position_defend_y = 0.0f;
+  float master_angle_to_target = 0.0f;
+  std::string master_move2ball_phase = "";
 };
 
 struct GameMsg

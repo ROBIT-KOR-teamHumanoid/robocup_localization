@@ -527,6 +527,8 @@ void QNode::masterCallback(const humanoid_interfaces::msg::Master2localization::
   masterMSG.master_best_position_attack_y = msg->bestposition_y;
   masterMSG.master_best_position_defend_x = msg->defendposition_x;
   masterMSG.master_best_position_defend_y = msg->defendposition_y;
+  masterMSG.master_angle_to_target = msg->angle_to_target;
+  masterMSG.master_move2ball_phase = msg->move2ball_phase;
 }
 
 void QNode::blindRobotCallback(const robocup_localization::msg::TechnicalChallenge::SharedPtr msg)
