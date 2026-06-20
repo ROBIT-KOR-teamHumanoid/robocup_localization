@@ -132,7 +132,11 @@ void Filter::prefilter(std::vector<VISION_POINT>& vect)
             }
         }
 
-        if (nearest > OBS_FILTER_DIST_M)
+        double threshold = OBS_FILTER_DIST_M;
+        if (it->FEATURE_TYPE == FieldCoord::X_SHAPE)
+            threshold = OBS_FILTER_X_FEATURE_DIST_M;
+
+        if (nearest > threshold)
             it = vect.erase(it);
         else
             ++it;
