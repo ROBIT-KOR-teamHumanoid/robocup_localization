@@ -37,7 +37,7 @@ public:
         float robot0_x, float robot0_y, float robot0_z,
         std::vector<VISION_POINT>& out_vect);
 
-    static constexpr int    ACCUM_FRAMES      = 10;
+    static constexpr int    ACCUM_FRAMES      = 5;
     static constexpr double CLUSTER_RADIUS_MM = 300.0;
 
     // 원 결과
