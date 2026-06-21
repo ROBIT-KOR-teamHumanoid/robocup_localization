@@ -28,6 +28,7 @@ QNode::QNode(int argc, char **argv)
   imu_sub_ = node->create_subscription<humanoid_interfaces::msg::ImuMsg>(imu_topic, rclcpp::QoS(rclcpp::KeepLast(1)).reliable().best_effort(), std::bind(&QNode::imuCallback, this, std::placeholders::_1));
   vision_sub_ = node->create_subscription<vision_interfaces::msg::Robocupvision>(vision_topic, 1, std::bind(&QNode::visionCallback, this, std::placeholders::_1));
   vision_feature_sub_ = node->create_subscription<vision_interfaces::msg::Robocupvisionfeature>(vision_feature_topic, 4, std::bind(&QNode::visionFeatureCallback, this, std::placeholders::_1));
+  pan_tilt_sub_ = node->create_subscription<vision_interfaces::msg::PanTiltMsgs>("/camera1/pan_tilt", rclcpp::SensorDataQoS().keep_last(1).best_effort(), std::bind(&QNode::panTiltCallback, this, std::placeholders::_1));
   ik_sub_ = node->create_subscription<humanoid_interfaces::msg::IkCoordMsg>(ik_topic, 1, std::bind(&QNode::ikCallback, this, std::placeholders::_1));
   game_control_sub_ = node->create_subscription<gamecontroller::msg::Gamecontroldata>(game_control_topic, 5, std::bind(&QNode::gameControlCallback, this, std::placeholders::_1));
   udp_sub_ = node->create_subscription<humanoid_interfaces::msg::Udp2master>(udp_topic, 5, std::bind(&QNode::udpCallback, this, std::placeholders::_1));
@@ -113,7 +114,6 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
 {
   std::lock_guard<std::mutex> lock(vision_mutex);
 
-  // robot0 스냅샷 (robot0_mutex 보호)
   float robot0_x, robot0_y, robot0_z;
   {
     std::lock_guard<std::mutex> robot0_lock(robot0_mutex);
@@ -122,110 +122,95 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
     robot0_z = robot0.z;
   }
 
-  // L/ㄱ (corner)
+  // 이번 프레임 raw 특징점 수집 (RAW_X_MM/Y 기준, POINT_VEC 변환 없음)
+  std::vector<VISION_POINT> raw_pts;
+  VISION_POINT vp;
+  vp.STD_X     = static_cast<int>(robot0_x);
+  vp.STD_Y     = static_cast<int>(robot0_y);
+  vp.POINT_VEC_X = 0;
+  vp.POINT_VEC_Y = 0;
+
   for (int i = 0; i < (int)msg->corner_confidence.size(); i++)
   {
-    vision_data_cnt += 1;
-    Likelihood.vision_point.CONFIDENCE = msg->corner_confidence[i];
-    Likelihood.vision_point.DISTANCE = msg->corner_distance[i];
-    Likelihood.vision_point.RAW_X_MM = msg->corner_point_vec_x[i];
-    Likelihood.vision_point.RAW_Y_MM = msg->corner_point_vec_y[i];
-    Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0_z)*M_PI / 180) + msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0_z)*M_PI / 180));
-    Likelihood.vision_point.POINT_VEC_Y = (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0_z)*M_PI / 180) - msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0_z)*M_PI / 180));
-    Likelihood.vision_point.STD_X = robot0_x;
-    Likelihood.vision_point.STD_Y = robot0_y;
-    Likelihood.vision_point.FEATURE_TYPE = 0; // L
+    vp.RAW_X_MM    = msg->corner_point_vec_x[i];
+    vp.RAW_Y_MM    = msg->corner_point_vec_y[i];
+    vp.CONFIDENCE  = msg->corner_confidence[i];
+    vp.DISTANCE    = msg->corner_distance[i];
+    vp.FEATURE_TYPE = 0;
+    vp.BALL_RELATIVE_ANGLE   = 0.0;
+    vp.BALL_FEATURE_DISTANCE = 0.0;
     if (i < (int)msg->corner_ball_relative_angle.size())
-      Likelihood.vision_point.BALL_RELATIVE_ANGLE = msg->corner_ball_relative_angle[i];
-    else
-      Likelihood.vision_point.BALL_RELATIVE_ANGLE = 0.0;
+      vp.BALL_RELATIVE_ANGLE = msg->corner_ball_relative_angle[i];
     if (i < (int)msg->corner_ball_feature_distance.size())
-      Likelihood.vision_point.BALL_FEATURE_DISTANCE = msg->corner_ball_feature_distance[i];
-    else
-      Likelihood.vision_point.BALL_FEATURE_DISTANCE = 0.0;
-    Likelihood.vision_point_vect.push_back(Likelihood.vision_point);
+      vp.BALL_FEATURE_DISTANCE = msg->corner_ball_feature_distance[i];
+    raw_pts.push_back(vp);
   }
-  vision_data_size += msg->corner_confidence.size();
 
-  // T
   for (int i = 0; i < (int)msg->t_confidence.size(); i++)
   {
-    vision_data_cnt += 1;
-    Likelihood.vision_point.CONFIDENCE = msg->t_confidence[i];
-    Likelihood.vision_point.DISTANCE = msg->t_distance[i];
-    Likelihood.vision_point.RAW_X_MM = msg->t_point_vec_x[i];
-    Likelihood.vision_point.RAW_Y_MM = msg->t_point_vec_y[i];
-    Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0_z)*M_PI / 180) + msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0_z)*M_PI / 180));
-    Likelihood.vision_point.POINT_VEC_Y = (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0_z)*M_PI / 180) - msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0_z)*M_PI / 180));
-    Likelihood.vision_point.STD_X = robot0_x;
-    Likelihood.vision_point.STD_Y = robot0_y;
-    Likelihood.vision_point.FEATURE_TYPE = 1; // T
+    vp.RAW_X_MM    = msg->t_point_vec_x[i];
+    vp.RAW_Y_MM    = msg->t_point_vec_y[i];
+    vp.CONFIDENCE  = msg->t_confidence[i];
+    vp.DISTANCE    = msg->t_distance[i];
+    vp.FEATURE_TYPE = 1;
+    vp.BALL_RELATIVE_ANGLE   = 0.0;
+    vp.BALL_FEATURE_DISTANCE = 0.0;
     if (i < (int)msg->t_ball_relative_angle.size())
-      Likelihood.vision_point.BALL_RELATIVE_ANGLE = msg->t_ball_relative_angle[i];
-    else
-      Likelihood.vision_point.BALL_RELATIVE_ANGLE = 0.0;
+      vp.BALL_RELATIVE_ANGLE = msg->t_ball_relative_angle[i];
     if (i < (int)msg->t_ball_feature_distance.size())
-      Likelihood.vision_point.BALL_FEATURE_DISTANCE = msg->t_ball_feature_distance[i];
-    else
-      Likelihood.vision_point.BALL_FEATURE_DISTANCE = 0.0;
-    Likelihood.vision_point_vect.push_back(Likelihood.vision_point);
+      vp.BALL_FEATURE_DISTANCE = msg->t_ball_feature_distance[i];
+    raw_pts.push_back(vp);
   }
-  vision_data_size += msg->t_confidence.size();
 
-  // X (cross)
   for (int i = 0; i < (int)msg->cross_confidence.size(); i++)
   {
-    vision_data_cnt += 1;
-    Likelihood.vision_point.CONFIDENCE = msg->cross_confidence[i];
-    Likelihood.vision_point.DISTANCE = msg->cross_distance[i];
-    Likelihood.vision_point.RAW_X_MM = msg->cross_point_vec_x[i];
-    Likelihood.vision_point.RAW_Y_MM = msg->cross_point_vec_y[i];
-    Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0_z)*M_PI / 180) + msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0_z)*M_PI / 180));
-    Likelihood.vision_point.POINT_VEC_Y = (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0_z)*M_PI / 180) - msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0_z)*M_PI / 180));
-    Likelihood.vision_point.STD_X = robot0_x;
-    Likelihood.vision_point.STD_Y = robot0_y;
-    Likelihood.vision_point.FEATURE_TYPE = 2; // X
-
+    vp.RAW_X_MM    = msg->cross_point_vec_x[i];
+    vp.RAW_Y_MM    = msg->cross_point_vec_y[i];
+    vp.CONFIDENCE  = msg->cross_confidence[i];
+    vp.DISTANCE    = msg->cross_distance[i];
+    vp.FEATURE_TYPE = 2;
+    vp.BALL_RELATIVE_ANGLE   = 0.0;
+    vp.BALL_FEATURE_DISTANCE = 0.0;
     if (i < (int)msg->cross_ball_relative_angle.size())
-      Likelihood.vision_point.BALL_RELATIVE_ANGLE = msg->cross_ball_relative_angle[i];
-    else
-      Likelihood.vision_point.BALL_RELATIVE_ANGLE = 0.0;
+      vp.BALL_RELATIVE_ANGLE = msg->cross_ball_relative_angle[i];
     if (i < (int)msg->cross_ball_feature_distance.size())
-      Likelihood.vision_point.BALL_FEATURE_DISTANCE = msg->cross_ball_feature_distance[i];
-    else
-      Likelihood.vision_point.BALL_FEATURE_DISTANCE = 0.0;
-    Likelihood.vision_point_vect.push_back(Likelihood.vision_point);
+      vp.BALL_FEATURE_DISTANCE = msg->cross_ball_feature_distance[i];
+    raw_pts.push_back(vp);
   }
-  vision_data_size += msg->cross_confidence.size();
 
-  bool has_real_features = !msg->corner_confidence.empty() ||
-                           !msg->t_confidence.empty() ||
-                           !msg->cross_confidence.empty();
+  if (raw_pts.empty())
+    return;
 
-  if (soccer_mode_ && !local_helper_ && has_real_features && !Likelihood.vision_point_vect.empty() && visionMSG.flag_pan == 0 && gameMSG.state == 3)
+  Likelihood.filter.accumulateAndCluster(
+      raw_pts, camera_stable_, robot0_x, robot0_y, robot0_z,
+      Likelihood.vision_point_vect);
+
+  if (!soccer_mode_ || local_helper_ || visionMSG.flag_pan != 0 || gameMSG.state != 3)
   {
-    // RCLCPP_INFO(node->get_logger(),
-    //   "[OBS] vect=%zu (L=%d T=%d X=%d) total_cnt=%d",
-    //   Likelihood.vision_point_vect.size(),
-    //   (int)msg->corner_confidence.size(),
-    //   (int)msg->t_confidence.size(),
-    //   (int)msg->cross_confidence.size(),
-    //   vision_data_cnt);
-    Likelihood.filter.setCircle(robot0_z, Likelihood.vision_point_vect);
-    valid_observation_ = true;
-    {
-      std::lock_guard<std::mutex> lock(mcl_mutex_);
-      mcl_pending_ = true;
-    }
-    mcl_cv_.notify_one();
-  }
-  else
-  {
-    valid_observation_ = false;
     Likelihood.vision_point_vect.clear();
     vision_data_cnt  = 0;
     vision_data_size = 0;
+    return;
   }
+
+  if (Likelihood.vision_point_vect.empty())
+    return;
+
+  vision_data_cnt  = static_cast<int>(Likelihood.vision_point_vect.size());
+  vision_data_size = vision_data_cnt * Filter::ACCUM_FRAMES;
+
+  Likelihood.filter.setCircle(robot0_z, Likelihood.vision_point_vect);
+  valid_observation_ = true;
+  {
+    std::lock_guard<std::mutex> lock(mcl_mutex_);
+    mcl_pending_ = true;
+  }
+  mcl_cv_.notify_one();
+}
+
+void QNode::panTiltCallback(const vision_interfaces::msg::PanTiltMsgs::SharedPtr msg)
+{
+  camera_stable_ = msg->camera_stable;
 }
 
 void QNode::imuCallback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg)

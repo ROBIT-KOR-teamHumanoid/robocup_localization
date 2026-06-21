@@ -28,6 +28,18 @@ public:
     // bearing 필터: 관측 방향과 예상 방향 차이가 임계값 이내이면 true
     static bool passBearing(double obs_angle, double exp_angle);
 
+    // 프레임 누적 + 클러스터링 평균화
+    // camera_stable=true 동안 raw_pts를 버퍼에 누적, ACCUM_FRAMES 도달 시
+    // 타입별 RAW_X/Y 기반 클러스터 centroid를 out_vect에 push
+    void accumulateAndCluster(
+        const std::vector<VISION_POINT>& raw_pts,
+        bool camera_stable,
+        float robot0_x, float robot0_y, float robot0_z,
+        std::vector<VISION_POINT>& out_vect);
+
+    static constexpr int    ACCUM_FRAMES      = 10;
+    static constexpr double CLUSTER_RADIUS_MM = 300.0;
+
     // 원 결과
     cv::Point CIRCLE_CENTER = cv::Point(0, 0);
     double    CIRCLE_R      = 0;
@@ -57,4 +69,8 @@ private:
     double X_MAX, X_MIN, Y_MAX, Y_MIN;
     double transformation_x, transformation_y;
     double dis;
+
+    // accumulateAndCluster 버퍼
+    std::vector<VISION_POINT> accum_buffer_;
+    int accum_frame_count_ = 0;
 };
