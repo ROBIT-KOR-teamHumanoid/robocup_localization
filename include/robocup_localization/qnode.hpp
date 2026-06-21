@@ -28,7 +28,6 @@
 #include "humanoid_interfaces/msg/imu_msg.hpp"
 #include "vision_interfaces/msg/robocupvision.hpp"
 #include "vision_interfaces/msg/robocupvisionfeature.hpp"
-#include "vision_interfaces/msg/pan_tilt_msgs.hpp"
 #include "vision_interfaces/msg/pan_angle_compensation.hpp"
 #include "humanoid_interfaces/msg/ik_coord_msg.hpp"
 
@@ -224,7 +223,6 @@ private:
   void imuCallback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg);
   void visionCallback(const vision_interfaces::msg::Robocupvision::SharedPtr msg);
   void visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfeature::SharedPtr msg);
-  void panTiltCallback(const vision_interfaces::msg::PanTiltMsgs::SharedPtr msg);
   void ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg);
   void gameControlCallback(const gamecontroller::msg::Gamecontroldata::SharedPtr msg);
   void udpCallback(const humanoid_interfaces::msg::Udp2master::SharedPtr msg);
@@ -235,8 +233,6 @@ private:
   rclcpp::Subscription<humanoid_interfaces::msg::ImuMsg>::SharedPtr imu_sub_;
   rclcpp::Subscription<vision_interfaces::msg::Robocupvision>::SharedPtr vision_sub_;
   rclcpp::Subscription<vision_interfaces::msg::Robocupvisionfeature>::SharedPtr vision_feature_sub_;
-  rclcpp::Subscription<vision_interfaces::msg::PanTiltMsgs>::SharedPtr pan_tilt_sub_;
-  bool camera_stable_ = false;
   rclcpp::Subscription<humanoid_interfaces::msg::IkCoordMsg>::SharedPtr ik_sub_;
   rclcpp::Subscription<gamecontroller::msg::Gamecontroldata>::SharedPtr game_control_sub_;
   rclcpp::Subscription<humanoid_interfaces::msg::Udp2master>::SharedPtr udp_sub_;

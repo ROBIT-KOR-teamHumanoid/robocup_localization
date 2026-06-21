@@ -10,7 +10,6 @@
 #include <opencv2/videoio.hpp>
 #include <opencv2/highgui.hpp>
 #include <mutex>
-#include <cmath>
 
 #include "../field_coordinate/field_coordinate.hpp"
 #include "../robot_odom_model/robot_odom_model.hpp"
