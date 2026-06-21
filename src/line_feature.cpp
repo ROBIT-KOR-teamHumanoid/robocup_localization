@@ -27,7 +27,7 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
 
     obs_size = (int)vision_point_vect.size();
 
-    if (obs_size > 3)  // 클러스터링 후 centroid 기준이므로 완화
+    if (obs_size > 1)  // 클러스터링 후 centroid 기준이므로 완화
     {
          cout << "PARTICLE UPDATE!! : " << endl;
          
