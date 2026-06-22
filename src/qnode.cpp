@@ -202,7 +202,8 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
                            !msg->t_confidence.empty() ||
                            !msg->cross_confidence.empty();
 
-  if (soccer_mode_ && !local_helper_ && has_real_features && !Likelihood.vision_point_vect.empty() && visionMSG.flag_pan == 0 && gameMSG.state == 3)
+  bool mcl_active = (gameMSG.state == 3) || (gameMSG.state == 1 && gameMSG.ready_count >= 2);
+  if (soccer_mode_ && !local_helper_ && has_real_features && !Likelihood.vision_point_vect.empty() && visionMSG.flag_pan == 0 && mcl_active)
   {
     // RCLCPP_INFO(node->get_logger(),
     //   "[OBS] vect=%zu (L=%d T=%d X=%d) total_cnt=%d",
@@ -422,7 +423,10 @@ void QNode::gameControlCallback(const gamecontroller::msg::Gamecontroldata::Shar
   gameMSG.penalty = msg->penalty;
   gameMSG.position = msg->position;
   gameMSG.robotNum = msg->robotnum;
+  int prev_state = gameMSG.state;
   gameMSG.state = msg->state;
+  if (prev_state != 1 && gameMSG.state == 1)
+    gameMSG.ready_count++;
   if (gameMSG.penalty != 0)
   {
     std::lock_guard<std::mutex> robot0_lock(robot0_mutex);

@@ -105,6 +105,7 @@ struct GameMsg
   int position = 0;
   int robotNum = 0;
   int state = 0;
+  int ready_count = 0;
 };
 
 struct PancompMsg
