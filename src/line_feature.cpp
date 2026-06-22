@@ -171,6 +171,11 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
             int feat_type = static_cast<int>(FieldCoord::ALL_POINTS[i].type);
             if (feat_type < 0 || feat_type >= 3 || !observed_types[feat_type])
                 continue;
+            if (robot_y_sign != 0 && feat_type == (int)FieldCoord::L_SHAPE)
+            {
+                if (FieldCoord::ALL_POINTS[i].y * robot_y_sign < 0.0)
+                    continue;
+            }
             vision_point_vect.push_back(VisionPointUtils::makeSynthetic(
                 filter.Local_point_x[i], filter.Local_point_y[i],
                 qnode->robot0.x, qnode->robot0.y,
@@ -224,6 +229,12 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, float PT_Z, int NOW_X,
                 continue;
             if (FieldCoord::ALL_POINTS[j].type != (FieldCoord::FeatureType)vect[i].FEATURE_TYPE)
                 continue;
+
+            if (robot_y_sign != 0 && vect[i].FEATURE_TYPE == (int)FieldCoord::L_SHAPE)
+            {
+                if (FieldCoord::ALL_POINTS[j].y * robot_y_sign < 0.0)
+                    continue;
+            }
 
             exp_angle = atan2(filter.Local_point_y[j] - PT_Y, filter.Local_point_x[j] - PT_X);
             if (!Filter::passBearing(obs_angle, exp_angle))

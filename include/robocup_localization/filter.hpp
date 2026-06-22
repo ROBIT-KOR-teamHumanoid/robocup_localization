@@ -28,6 +28,10 @@ public:
     // bearing 필터: 관측 방향과 예상 방향 차이가 임계값 이내이면 true
     static bool passBearing(double obs_angle, double exp_angle);
 
+    // 골대 pan 각도 + 현재 yaw로 로봇 y부호 결정 (1: y>0, -1: y<0, 0: 미결정)
+    // 두 골대 모두 y=0이므로 어느 골대든 동일하게 적용됨
+    static int computeYSign(double robot_yaw_deg, const std::vector<double>& goal_post_pan_degs);
+
     // 원 결과
     cv::Point CIRCLE_CENTER = cv::Point(0, 0);
     double    CIRCLE_R      = 0;

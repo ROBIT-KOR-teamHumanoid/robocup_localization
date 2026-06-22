@@ -47,6 +47,9 @@ public:
 
     Filter filter;
 
+    // 골대 관측으로 결정된 로봇 y부호 (1: y>0, -1: y<0, 0: 미결정)
+    int robot_y_sign = 0;
+
     Line_Feature() {}
 
     // weight_calculate() 튜닝 파라미터

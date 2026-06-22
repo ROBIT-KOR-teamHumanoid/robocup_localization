@@ -102,7 +102,7 @@ void QNode::run()
   while (rclcpp::ok())
   {
     rclcpp::spin_some(node);
-    yaw_compensation();
+    // yaw_compensation();
     loop_rate.sleep();
   }
   rclcpp::shutdown();
@@ -295,9 +295,36 @@ void QNode::visionCallback(const vision_interfaces::msg::Robocupvision::SharedPt
   }
   vision_callback_timer = 0;
 
+  Likelihood.robot_y_sign = 0;
   if (!msg->goal_post_pan_deg.empty())
   {
     goal_post_pan_deg_buf_ = msg->goal_post_pan_deg;
+    float robot0_z;
+    {
+      std::lock_guard<std::mutex> lock(robot0_mutex);
+      robot0_z = robot0.z;
+    }
+    Likelihood.robot_y_sign = Filter::computeYSign(robot0_z, goal_post_pan_deg_buf_);
+
+    // y부호 불일치 시 robot0.y + 파티클 전체 y=0 기준 플립
+    {
+      std::lock_guard<std::mutex> robot0_lock(robot0_mutex);
+      double ry_m = FieldCoord::toFieldY(robot0.y);
+      if (Likelihood.robot_y_sign != 0 && Likelihood.robot_y_sign * ry_m < 0.0)
+      {
+        robot0.y = static_cast<float>(FieldCoord::MAP_H) - robot0.y;
+
+        std::lock_guard<std::mutex> pt_lock(pt_mutex);
+        for (int i = 0; i < particle_num; i++)
+        {
+          pt[i].y = static_cast<float>(FieldCoord::MAP_H) - pt[i].y;
+          double new_yaw = 180.0 - pt[i].z;
+          if (new_yaw >  180.0) new_yaw -= 360.0;
+          if (new_yaw < -180.0) new_yaw += 360.0;
+          pt[i].z = static_cast<float>(new_yaw);
+        }
+      }
+    }
   }
 
   if (local_helper_ && !visionMSG.ROBOT_VEC_X.empty())

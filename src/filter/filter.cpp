@@ -143,6 +143,30 @@ void Filter::prefilter(std::vector<VISION_POINT>& vect)
     }
 }
 
+int Filter::computeYSign(double robot_yaw_deg, const std::vector<double>& goal_post_pan_degs)
+{
+    if (goal_post_pan_degs.empty())
+        return 0;
+
+    // 두 골대 모두 y=0이므로 어느 골대든 적용 가능
+    // yaw 컨벤션: atan2(dx, dy) 방식 (bearing)
+    // cos(yaw + pan) ∝ -ry_m → cos > 0이면 ry_m < 0
+    int pos_votes = 0;
+    int neg_votes = 0;
+    for (double pan_deg : goal_post_pan_degs)
+    {
+        double world_angle_rad = (robot_yaw_deg + pan_deg) * M_PI / 180.0;
+        if (cos(world_angle_rad) < 0.0)
+            pos_votes++;
+        else
+            neg_votes++;
+    }
+
+    if (pos_votes > neg_votes) return 1;
+    if (neg_votes > pos_votes) return -1;
+    return 0;
+}
+
 bool Filter::passBearing(double obs_angle, double exp_angle)
 {
     // PRE CONDITION : obs_angle (관측 방향), exp_angle (예상 방향) - 라디안
