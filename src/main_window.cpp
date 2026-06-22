@@ -341,9 +341,9 @@ void MainWindow::select_ball()
     else
     {
       qnode->obstacles[i].nocnt += 1;
-      if (qnode->obstacles[i].nocnt > 20)
+      if (qnode->obstacles[i].nocnt > 300)
       {
-        qnode->obstacles[i].nocnt = 20;
+        qnode->obstacles[i].nocnt = 300;
         qnode->obstacles[i].x = 0;
         qnode->obstacles[i].y = 0;
       }
