@@ -32,7 +32,6 @@
 #include "humanoid_interfaces/msg/ik_coord_msg.hpp"
 
 #include "robocup_localization/msg/robocup_localization.hpp"
-#include "robocup_localization/msg/technical_challenge.hpp"
 #include "gamecontroller/msg/gamecontroldata.hpp"
 #include "humanoid_interfaces/msg/udp2master.hpp"
 #include "humanoid_interfaces/msg/master2localization.hpp"
@@ -41,7 +40,6 @@
 #include "../objects/obstacle.hpp"
 #include "../objects/ball.hpp"
 #include "../objects/line_feature.hpp"
-#include "../technical_challenge/colaborate_localization.hpp"
 
 #define DEG2RAD (M_PI / 180)
 
@@ -113,13 +111,6 @@ struct PancompMsg
   float target_yaw_deg = 0.0f;
 };
 
-struct TechnicalChallengeMsg
-{
-  int ball_in_approach = 0;
-  double blind_robot_x = 0.0;
-  double blind_robot_y = 0.0;
-};
-
 /*****************************************************************************
 ** Class
 *****************************************************************************/
@@ -130,9 +121,6 @@ public:
   QNode(int argc, char **argv);
   ~QNode();
 
-  rclcpp::Publisher<robocup_localization::msg::RobocupLocalization>::SharedPtr localization_pub_;
-  rclcpp::Publisher<robocup_localization::msg::TechnicalChallenge>::SharedPtr technical_challenge_pub_;
-
   void publish_localization(
       float ball_x, float ball_y,
       float ball_speed_x, float ball_speed_y,
@@ -140,7 +128,6 @@ public:
       const std::vector<float> &obstacles_x,
       const std::vector<float> &obstacles_y);
   void publish_pan_comp();
-  void publish_technical_challenge();
   void getParams();
 
   string robot_feature;
@@ -190,7 +177,6 @@ public:
 
   // For gamecontrol
   GameMsg gameMSG;
-  TechnicalChallengeMsg technical_challengeMSG;
 
   // For particle
   int particle_num = 8000;
@@ -201,12 +187,7 @@ public:
   // For settings
   bool soccer_mode_ = true;
   double foot_align_odom_scale_ = 0.3;
-  bool corner_kick_receiver_ = false;
-  bool local_helper_ = false;
-  bool local_kicker_ = false;
-  bool high_kicker_ = false;
   bool noise_enable_ = true;
-  int local_helper_dir = 0; // 0: left, 1: right
 
   // Thread safety: vision_point_vect 공유 보호
   std::mutex vision_mutex;
@@ -228,7 +209,6 @@ private:
   void gameControlCallback(const gamecontroller::msg::Gamecontroldata::SharedPtr msg);
   void udpCallback(const humanoid_interfaces::msg::Udp2master::SharedPtr msg);
   void masterCallback(const humanoid_interfaces::msg::Master2localization::SharedPtr msg);
-  void blindRobotCallback(const robocup_localization::msg::TechnicalChallenge::SharedPtr msg);
   void yaw_compensation();
 
   rclcpp::Subscription<humanoid_interfaces::msg::ImuMsg>::SharedPtr imu_sub_;
@@ -238,8 +218,8 @@ private:
   rclcpp::Subscription<gamecontroller::msg::Gamecontroldata>::SharedPtr game_control_sub_;
   rclcpp::Subscription<humanoid_interfaces::msg::Udp2master>::SharedPtr udp_sub_;
   rclcpp::Subscription<humanoid_interfaces::msg::Master2localization>::SharedPtr master_sub_;
-  rclcpp::Subscription<robocup_localization::msg::TechnicalChallenge>::SharedPtr blind_robot_sub_;
 
+  rclcpp::Publisher<robocup_localization::msg::RobocupLocalization>::SharedPtr localization_pub_;
   rclcpp::Publisher<vision_interfaces::msg::PanAngleCompensation>::SharedPtr pan_angle_comp_pub_;
 
   int yaw_correction_cooldown_ = 100;

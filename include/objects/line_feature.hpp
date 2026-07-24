@@ -37,7 +37,7 @@ class Line_Feature
 {
 public:
     void featureCalc(QNode *qnode, double particle_range);
-    double weight_calculate(int PT_X, int PT_Y, float PT_Z, int NOW_X, int NOW_Y, vector<VISION_POINT> &vect);
+    double weight_calculate(double PT_X, double PT_Y, float PT_Z, double NOW_X, double NOW_Y, vector<VISION_POINT> &vect);
 
     static double gaussianRandom(double average, double stdev);
     static void random_point(ROBOT &robot, int x, int y, float particle_range, float theta);
@@ -77,13 +77,13 @@ public:
     // 한 번의 MATCHING에서 robot0 위치가 이동할 수 있는7 최소/최대 거리 (미터).
     // MIN_JUMP_PX 미만이면 진동 억제를 위해 업데이트 skip.
     static constexpr double MIN_JUMP_M  = 0.07;
-    static constexpr double MIN_JUMP_PX = MIN_JUMP_M * FieldCoord::PX_PER_M_X;
+    static constexpr double MIN_JUMP_PX = MIN_JUMP_M * FieldCoord::PX_PER_M;
     static constexpr double MAX_JUMP_M  = 1.0;
-    static constexpr double MAX_JUMP_PX = MAX_JUMP_M * FieldCoord::PX_PER_M_X;
+    static constexpr double MAX_JUMP_PX = MAX_JUMP_M * FieldCoord::PX_PER_M;
 
     // top-N 파티클 위치 분산 허용 한계 (픽셀). 이보다 퍼져있으면 업데이트 reject.
     static constexpr double MAX_SPREAD_M  = 0.5;
-    static constexpr double MAX_SPREAD_PX = MAX_SPREAD_M * FieldCoord::PX_PER_M_X;
+    static constexpr double MAX_SPREAD_PX = MAX_SPREAD_M * FieldCoord::PX_PER_M;
 
     vector<MEASUREMENT> particle_weight;
 
@@ -105,7 +105,7 @@ private:
     double weight;
     double min_dis;
     int    best_j;
-    int ptx, pty;
+    double ptx, pty;
     double obs_angle;
     double exp_angle;
 

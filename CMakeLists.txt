@@ -23,7 +23,6 @@ find_package(ament_index_cpp REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RobocupLocalization.msg"
-  "msg/TechnicalChallenge.msg"
 )
 ament_export_dependencies(rosidl_default_runtime)
 
@@ -40,7 +39,7 @@ install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
 )
 
-file(GLOB PRO_SOURCE_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  src/*.cpp src/filter/*.cpp src/get_params/*.cpp src/robot_odom_model/*.cpp)
+file(GLOB PRO_SOURCE_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  src/*.cpp src/filter/*.cpp src/get_params/*.cpp src/robot_odom_model/*.cpp src/udp/*.cpp)
 file(GLOB PRO_UI_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  ui/*.ui)
 file(GLOB PRO_INCLUDE_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  include/${PROJECT_NAME}/*.h include/${PROJECT_NAME}/*.hpp)
 list(FILTER PRO_INCLUDE_DIR EXCLUDE REGEX "filter\\.hpp$")

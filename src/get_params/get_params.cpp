@@ -17,10 +17,6 @@ void QNode::getParams()
     node->declare_parameter("particle_filter.noise_enable", true);
     node->declare_parameter("particle_filter.foot_align_odom_scale", 0.3);
     node->declare_parameter("setup_mode.Soccer_mode", true);
-    node->declare_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver", false);
-    node->declare_parameter("setup_mode.Technical_Challenge_mode.Local_helper", false);
-    node->declare_parameter("setup_mode.Technical_Challenge_mode.Local_kicker", false);
-    node->declare_parameter("setup_mode.Technical_Challenge_mode.High_kicker", false);
     imu_topic = node->get_parameter("topic.imu_sub_topic").as_string();
     vision_topic = node->get_parameter("topic.vision_sub_topic").as_string();
     vision_feature_topic = node->get_parameter("topic.vision_feature_sub_topic").as_string();
@@ -39,8 +35,4 @@ void QNode::getParams()
     foot_align_odom_scale_ = node->get_parameter("particle_filter.foot_align_odom_scale").as_double();
     pt.resize(particle_num);
     soccer_mode_ = node->get_parameter("setup_mode.Soccer_mode").as_bool();
-    corner_kick_receiver_ = node->get_parameter("setup_mode.Technical_Challenge_mode.Corner_kick_receiver").as_bool();
-    local_helper_ = node->get_parameter("setup_mode.Technical_Challenge_mode.Local_helper").as_bool();
-    local_kicker_ = node->get_parameter("setup_mode.Technical_Challenge_mode.Local_kicker").as_bool();
-    high_kicker_ = node->get_parameter("setup_mode.Technical_Challenge_mode.High_kicker").as_bool();
 }

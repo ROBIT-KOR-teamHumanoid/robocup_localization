@@ -34,9 +34,9 @@ void Filter::computeCircle(std::vector<VISION_POINT>& vect, int start, double ya
         if (transformation_y < Y_MIN) Y_MIN = transformation_y;
     }
 
-    CIRCLE_CENTER = cv::Point(
-        (int)(vect[0].STD_X + ((X_MAX + X_MIN) / 2) * cos(yaw * DEG2RAD) - ((Y_MAX + Y_MIN) / 2) * sin(yaw * DEG2RAD)),
-        (int)(vect[0].STD_Y + ((X_MAX + X_MIN) / 2) * sin(yaw * DEG2RAD) + ((Y_MAX + Y_MIN) / 2) * cos(yaw * DEG2RAD)));
+    CIRCLE_CENTER = cv::Point2d(
+        vect[0].STD_X + ((X_MAX + X_MIN) / 2) * cos(yaw * DEG2RAD) - ((Y_MAX + Y_MIN) / 2) * sin(yaw * DEG2RAD),
+        vect[0].STD_Y + ((X_MAX + X_MIN) / 2) * sin(yaw * DEG2RAD) + ((Y_MAX + Y_MIN) / 2) * cos(yaw * DEG2RAD));
 
     CIRCLE_R = 0;
     for (int i = start; i < (int)vect.size(); i++)
@@ -114,8 +114,8 @@ void Filter::prefilter(std::vector<VISION_POINT>& vect)
     auto it = vect.begin();
     while (it != vect.end())
     {
-        int wx = VisionPointUtils::worldX(*it);
-        int wy = VisionPointUtils::worldY(*it);
+        double wx = VisionPointUtils::worldX(*it);
+        double wy = VisionPointUtils::worldY(*it);
         double nearest = LARGE_DIST;
 
         for (int j = 0; j < FieldCoord::FEATURE_POINT_COUNT; j++)
@@ -124,8 +124,8 @@ void Filter::prefilter(std::vector<VISION_POINT>& vect)
                 continue;
             if (FieldCoord::ALL_POINTS[j].type == (FieldCoord::FeatureType)it->FEATURE_TYPE)
             {
-                double dx_m = (Local_point_x[j] - wx) / FieldCoord::PX_PER_M_X;
-                double dy_m = (Local_point_y[j] - wy) / FieldCoord::PX_PER_M_Y;
+                double dx_m = (Local_point_x[j] - wx) / FieldCoord::PX_PER_M;
+                double dy_m = (Local_point_y[j] - wy) / FieldCoord::PX_PER_M;
                 double d    = sqrt(dx_m * dx_m + dy_m * dy_m);
                 if (d < nearest)
                     nearest = d;

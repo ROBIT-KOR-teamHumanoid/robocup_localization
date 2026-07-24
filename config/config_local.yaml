@@ -1,8 +1,8 @@
 /**:
   ros__parameters:
-    robot_feature: "kids" # "kids" or "adult"
+    robot_feature: "adult" # "kids" or "adult"
 
-    topic:
+    Topic:
       imu_sub_topic: "Imu"
       vision_sub_topic: "vision"
       vision_feature_sub_topic: "vision_feature"
@@ -12,17 +12,17 @@
       master_sub_topic: "master2local"
       local_pub_topic: "localization"
 
-    particle_filter:
+    Particle_filter:
       weight_update_threshold: 4.0
       particle_nums: 8000
       noise_enable: false
       foot_align_odom_scale: 0.65
 
-    setup_mode:
-      Soccer_mode : true
-      
-      Technical_Challenge_mode : 
-        Corner_kick_receiver: false
-        Local_helper: false
-        Local_kicker: false
-        High_kicker: false
+    Fov: 
+      fov_enable: true
+      fov_angle: 60.0 # degrees
+      fov_distance: 1.5 # m
+
+    inference:
+      enable: true
+      inference_model: "/home/bws/colcon_ws/src/robocup_localization/config/inference_model.pt"

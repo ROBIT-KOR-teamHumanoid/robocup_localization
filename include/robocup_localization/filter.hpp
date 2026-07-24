@@ -32,13 +32,13 @@ public:
     // 두 골대 모두 y=0이므로 어느 골대든 동일하게 적용됨
     static int computeYSign(double robot_yaw_deg, const std::vector<double>& goal_post_pan_degs);
 
-    // 원 결과
-    cv::Point CIRCLE_CENTER = cv::Point(0, 0);
-    double    CIRCLE_R      = 0;
+    // 원 결과 (double 픽셀)
+    cv::Point2d CIRCLE_CENTER = cv::Point2d(0, 0);
+    double      CIRCLE_R      = 0;
 
-    // 랜드마크 픽셀 좌표 (ALL_POINTS 기반 사전 계산)
-    int Local_point_x[FieldCoord::FEATURE_POINT_COUNT];
-    int Local_point_y[FieldCoord::FEATURE_POINT_COUNT];
+    // 랜드마크 픽셀 좌표 (ALL_POINTS 기반 사전 계산, double 픽셀)
+    double Local_point_x[FieldCoord::FEATURE_POINT_COUNT];
+    double Local_point_y[FieldCoord::FEATURE_POINT_COUNT];
 
     // 랜드마크 활성화 플래그
     int Local_point_on_off[FieldCoord::FEATURE_POINT_COUNT];

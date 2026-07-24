@@ -12,6 +12,7 @@
 
 #include "../include/robocup_localization/qnode.hpp"
 #include "../include/field_coordinate/field_coordinate.hpp"
+#include "../include/udp/team_udp_receiver.hpp"
 
 /*****************************************************************************
 ** QNode
@@ -36,19 +37,12 @@ QNode::QNode(int argc, char **argv)
   localization_pub_ = node->create_publisher<robocup_localization::msg::RobocupLocalization>(local_pub_topic, 5);
   pan_angle_comp_pub_ = node->create_publisher<vision_interfaces::msg::PanAngleCompensation>("/pan_angle_compensation", 5);
 
-  if (local_helper_ || corner_kick_receiver_)
-    technical_challenge_pub_ = node->create_publisher<robocup_localization::msg::TechnicalChallenge>("/technical_challenge", 5);
-
-  if (local_kicker_)
-    blind_robot_sub_ = node->create_subscription<robocup_localization::msg::TechnicalChallenge>(
-        "/technical_challenge", 5, std::bind(&QNode::blindRobotCallback, this, std::placeholders::_1));
-
   if (robot_feature == "adult")
   {
     Likelihood.filter.OBS_FILTER_DIST_M = 999999.0; // 관측 pre-filter 거리 임계값 false
   }
 
-  loop_hz = corner_kick_receiver_ ? 50 : 20;
+  loop_hz = 20;
 
   if (soccer_mode_)
     startMclProcessing();
@@ -130,8 +124,8 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
     Likelihood.vision_point.DISTANCE = msg->corner_distance[i];
     Likelihood.vision_point.RAW_X_MM = msg->corner_point_vec_x[i];
     Likelihood.vision_point.RAW_Y_MM = msg->corner_point_vec_y[i];
-    Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0_z)*M_PI / 180) + msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0_z)*M_PI / 180));
-    Likelihood.vision_point.POINT_VEC_Y = (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0_z)*M_PI / 180) - msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0_z)*M_PI / 180));
+    Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M * cos((robot0_z)*M_PI / 180) + msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M * sin((robot0_z)*M_PI / 180));
+    Likelihood.vision_point.POINT_VEC_Y = (msg->corner_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M * sin((robot0_z)*M_PI / 180) - msg->corner_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M * cos((robot0_z)*M_PI / 180));
     Likelihood.vision_point.STD_X = robot0_x;
     Likelihood.vision_point.STD_Y = robot0_y;
     Likelihood.vision_point.FEATURE_TYPE = 0; // L
@@ -155,8 +149,8 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
     Likelihood.vision_point.DISTANCE = msg->t_distance[i];
     Likelihood.vision_point.RAW_X_MM = msg->t_point_vec_x[i];
     Likelihood.vision_point.RAW_Y_MM = msg->t_point_vec_y[i];
-    Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0_z)*M_PI / 180) + msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0_z)*M_PI / 180));
-    Likelihood.vision_point.POINT_VEC_Y = (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0_z)*M_PI / 180) - msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0_z)*M_PI / 180));
+    Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M * cos((robot0_z)*M_PI / 180) + msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M * sin((robot0_z)*M_PI / 180));
+    Likelihood.vision_point.POINT_VEC_Y = (msg->t_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M * sin((robot0_z)*M_PI / 180) - msg->t_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M * cos((robot0_z)*M_PI / 180));
     Likelihood.vision_point.STD_X = robot0_x;
     Likelihood.vision_point.STD_Y = robot0_y;
     Likelihood.vision_point.FEATURE_TYPE = 1; // T
@@ -180,8 +174,8 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
     Likelihood.vision_point.DISTANCE = msg->cross_distance[i];
     Likelihood.vision_point.RAW_X_MM = msg->cross_point_vec_x[i];
     Likelihood.vision_point.RAW_Y_MM = msg->cross_point_vec_y[i];
-    Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_X * cos((robot0_z)*M_PI / 180) + msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_X * sin((robot0_z)*M_PI / 180));
-    Likelihood.vision_point.POINT_VEC_Y = (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M_Y * sin((robot0_z)*M_PI / 180) - msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M_Y * cos((robot0_z)*M_PI / 180));
+    Likelihood.vision_point.POINT_VEC_X = (-1) * (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M * cos((robot0_z)*M_PI / 180) + msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M * sin((robot0_z)*M_PI / 180));
+    Likelihood.vision_point.POINT_VEC_Y = (msg->cross_point_vec_x[i] / 1000.0 * FieldCoord::PX_PER_M * sin((robot0_z)*M_PI / 180) - msg->cross_point_vec_y[i] / 1000.0 * FieldCoord::PX_PER_M * cos((robot0_z)*M_PI / 180));
     Likelihood.vision_point.STD_X = robot0_x;
     Likelihood.vision_point.STD_Y = robot0_y;
     Likelihood.vision_point.FEATURE_TYPE = 2; // X
@@ -203,7 +197,7 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
                            !msg->cross_confidence.empty();
 
   bool mcl_active = (gameMSG.state == 3) || (gameMSG.state == 1 && gameMSG.ready_count >= 2);
-  if (soccer_mode_ && !local_helper_ && has_real_features && !Likelihood.vision_point_vect.empty() && visionMSG.flag_pan == 0 && mcl_active)
+  if (soccer_mode_ && has_real_features && !Likelihood.vision_point_vect.empty() && visionMSG.flag_pan == 0 && mcl_active)
   {
     // RCLCPP_INFO(node->get_logger(),
     //   "[OBS] vect=%zu (L=%d T=%d X=%d) total_cnt=%d",
@@ -235,20 +229,6 @@ void QNode::imuCallback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg)
   if (imu_ignore_count_ > 0)
   {
     imu_ignore_count_--;
-    return;
-  }
-
-  if (local_helper_)
-  {
-    switch (local_helper_dir)
-    {
-    case 0:
-      robot0.z = -90.0;
-      break;
-    case 1:
-      robot0.z = 90.0;
-      break;
-    }
     return;
   }
 
@@ -312,12 +292,12 @@ void QNode::visionCallback(const vision_interfaces::msg::Robocupvision::SharedPt
       double ry_m = FieldCoord::toFieldY(robot0.y);
       if (Likelihood.robot_y_sign != 0 && Likelihood.robot_y_sign * ry_m < 0.0)
       {
-        robot0.y = static_cast<float>(FieldCoord::MAP_H) - robot0.y;
+        robot0.y = static_cast<float>(FieldCoord::MIRROR_Y_PX) - robot0.y;
 
         std::lock_guard<std::mutex> pt_lock(pt_mutex);
         for (int i = 0; i < particle_num; i++)
         {
-          pt[i].y = static_cast<float>(FieldCoord::MAP_H) - pt[i].y;
+          pt[i].y = static_cast<float>(FieldCoord::MIRROR_Y_PX) - pt[i].y;
           double new_yaw = 180.0 - pt[i].z;
           if (new_yaw >  180.0) new_yaw -= 360.0;
           if (new_yaw < -180.0) new_yaw += 360.0;
@@ -327,28 +307,10 @@ void QNode::visionCallback(const vision_interfaces::msg::Robocupvision::SharedPt
     }
   }
 
-  if (local_helper_ && !visionMSG.ROBOT_VEC_X.empty())
-  {
-    float robot0_x, robot0_y, robot0_z;
-    {
-      std::lock_guard<std::mutex> lock(robot0_mutex);
-      robot0_x = robot0.x;
-      robot0_y = robot0.y;
-      robot0_z = robot0.z;
-    }
-    RH::computeBlindRobotCoord(
-        visionMSG.ROBOT_VEC_X[0], visionMSG.ROBOT_VEC_Y[0],
-        robot0_x, robot0_y, robot0_z,
-        technical_challengeMSG.blind_robot_x,
-        technical_challengeMSG.blind_robot_y);
-  }
 }
 
 void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg)
 {
-  if (local_kicker_)
-    return;
-
   ik_Xmoved = msg->x;
   ik_Ymoved = msg->y;
 
@@ -501,54 +463,14 @@ void QNode::udpCallback(const humanoid_interfaces::msg::Udp2master::SharedPtr ms
 {
   // PRE CONDITION : msg(udpcom)
   // POST CONDITION : robotX.n, ballX.n,
-  // purpose : udp통신으로 받아온 다른 로봇 데이터를 콜백하여 내부 변수에 적용
-  if (msg->robotnum == 1)
+  // purpose : udp통신으로 받아온 다른 로봇 데이터를 team_udp_receiver로 위임하여 반영
+  switch (msg->robotnum)
   {
-    robot1.x = msg->localx;
-    robot1.y = msg->localy;
-    robot1.z = msg->localyaw;
-    robot1.b = 1;
-    robot1.state = msg->robotcase;
-
-    ball1.x = msg->ballx;
-    ball1.y = msg->bally;
-    ball1.d = sqrt(pow(msg->localx - msg->ballx, 2) + pow(msg->localy - msg->bally, 2));
-  }
-  if (msg->robotnum == 2)
-  {
-    robot2.x = msg->localx;
-    robot2.y = msg->localy;
-    robot2.z = msg->localyaw;
-    robot2.b = 1;
-    robot2.state = msg->robotcase;
-
-    ball2.x = msg->ballx;
-    ball2.y = msg->bally;
-    ball2.d = sqrt(pow(msg->localx - msg->ballx, 2) + pow(msg->localy - msg->bally, 2));
-  }
-  if (msg->robotnum == 3)
-  {
-    robot3.x = msg->localx;
-    robot3.y = msg->localy;
-    robot3.z = msg->localyaw;
-    robot3.b = 1;
-    robot3.state = msg->robotcase;
-
-    ball3.x = msg->ballx;
-    ball3.y = msg->bally;
-    ball3.d = sqrt(pow(msg->localx - msg->ballx, 2) + pow(msg->localy - msg->bally, 2));
-  }
-  if (msg->robotnum == 4)
-  {
-    robot4.x = msg->localx;
-    robot4.y = msg->localy;
-    robot4.z = msg->localyaw;
-    robot4.b = 1;
-    robot4.state = msg->robotcase;
-
-    ball4.x = msg->ballx;
-    ball4.y = msg->bally;
-    ball4.d = sqrt(pow(msg->localx - msg->ballx, 2) + pow(msg->localy - msg->bally, 2));
+  case 1: team_udp_receiver::receive(msg, robot1, ball1); break;
+  case 2: team_udp_receiver::receive(msg, robot2, ball2); break;
+  case 3: team_udp_receiver::receive(msg, robot3, ball3); break;
+  case 4: team_udp_receiver::receive(msg, robot4, ball4); break;
+  default: break;
   }
 }
 
@@ -566,15 +488,6 @@ void QNode::masterCallback(const humanoid_interfaces::msg::Master2localization::
   masterMSG.master_best_position_defend_y = msg->defendposition_y;
   masterMSG.master_angle_to_target = msg->angle_to_target;
   masterMSG.master_move2ball_phase = msg->move2ball_phase;
-}
-
-void QNode::blindRobotCallback(const robocup_localization::msg::TechnicalChallenge::SharedPtr msg)
-{
-  if (msg->blind_robot_x == 0.0 && msg->blind_robot_y == 0.0)
-    return;
-  std::lock_guard<std::mutex> lock(robot0_mutex);
-  robot0.x = static_cast<float>(msg->blind_robot_x);
-  robot0.y = static_cast<float>(msg->blind_robot_y);
 }
 
 void QNode::yaw_compensation()
@@ -672,13 +585,3 @@ void QNode::publish_pan_comp()
   pan_angle_comp_pub_->publish(msg);
 }
 
-void QNode::publish_technical_challenge()
-{
-  if (!technical_challenge_pub_)
-    return;
-  robocup_localization::msg::TechnicalChallenge msg;
-  msg.ball_in_approach = technical_challengeMSG.ball_in_approach;
-  msg.blind_robot_x = technical_challengeMSG.blind_robot_x;
-  msg.blind_robot_y = technical_challengeMSG.blind_robot_y;
-  technical_challenge_pub_->publish(msg);
-}

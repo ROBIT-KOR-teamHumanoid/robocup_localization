@@ -21,7 +21,7 @@
 
 #include "robot_config.h"
 #include "../include/field_coordinate/field_coordinate.hpp"
-#include "../include/technical_challenge/cornerkick_challenge.hpp"
+#include "../include/udp/team_udp_receiver.hpp"
 
 MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindowDesign)
@@ -36,14 +36,7 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
   // 데이터 업데이트 타이머
   m_DataTimer = new QTimer(this);
   connect(m_DataTimer, SIGNAL(timeout()), this, SLOT(main()));
-  if (qnode->corner_kick_receiver_)
-  {
-    m_DataTimer->start(20);
-  }
-  else
-  {
-    m_DataTimer->start(50);
-  }
+  m_DataTimer->start(50);
 
   // UI 업데이트 타이머
   m_screenTimer = new QTimer(this);
@@ -58,7 +51,7 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
     QPainter p(&buf);
     p.setRenderHint(QPainter::Antialiasing);
 
-    int line_w = (int)(FieldCoord::LINE_W * FieldCoord::PX_PER_M_X);
+    int line_w = (int)(FieldCoord::LINE_W * FieldCoord::PX_PER_M);
     if (line_w < 1)
       line_w = 1;
 
@@ -68,22 +61,22 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
     // 외곽 경계선
     p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2),
                FieldCoord::toPixelY(FieldCoord::B / 2),
-               (int)(FieldCoord::A * FieldCoord::PX_PER_M_X),
-               (int)(FieldCoord::B * FieldCoord::PX_PER_M_Y));
+               (int)(FieldCoord::A * FieldCoord::PX_PER_M),
+               (int)(FieldCoord::B * FieldCoord::PX_PER_M));
 
     // 하프라인
     p.drawLine(FieldCoord::toPixelX(0), FieldCoord::toPixelY(FieldCoord::B / 2),
                FieldCoord::toPixelX(0), FieldCoord::toPixelY(-FieldCoord::B / 2));
 
     // 센터 서클 (J = 지름)
-    int circle_r = (int)(FieldCoord::J / 2.0 * FieldCoord::PX_PER_M_X);
+    int circle_r = (int)(FieldCoord::J / 2.0 * FieldCoord::PX_PER_M);
     p.drawEllipse(FieldCoord::toPixelX(0) - circle_r,
                   FieldCoord::toPixelY(0) - circle_r,
                   circle_r * 2, circle_r * 2);
 
     // 골대 (필드 경계 바깥, C 깊이 × D 너비)
-    int goal_w = (int)(FieldCoord::C * FieldCoord::PX_PER_M_X);
-    int goal_h = (int)(FieldCoord::D * FieldCoord::PX_PER_M_Y);
+    int goal_w = (int)(FieldCoord::C * FieldCoord::PX_PER_M);
+    int goal_h = (int)(FieldCoord::D * FieldCoord::PX_PER_M);
     p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2) - goal_w,
                FieldCoord::toPixelY(FieldCoord::D / 2),
                goal_w, goal_h);
@@ -94,29 +87,29 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
     // 좌측 골 에어리어
     p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2),
                FieldCoord::toPixelY(FieldCoord::F / 2),
-               (int)(FieldCoord::E * FieldCoord::PX_PER_M_X),
-               (int)(FieldCoord::F * FieldCoord::PX_PER_M_Y));
+               (int)(FieldCoord::E * FieldCoord::PX_PER_M),
+               (int)(FieldCoord::F * FieldCoord::PX_PER_M));
 
     // 우측 골 에어리어
     p.drawRect(FieldCoord::toPixelX(FieldCoord::A / 2 - FieldCoord::E),
                FieldCoord::toPixelY(FieldCoord::F / 2),
-               (int)(FieldCoord::E * FieldCoord::PX_PER_M_X),
-               (int)(FieldCoord::F * FieldCoord::PX_PER_M_Y));
+               (int)(FieldCoord::E * FieldCoord::PX_PER_M),
+               (int)(FieldCoord::F * FieldCoord::PX_PER_M));
 
     // 좌측 페널티 에어리어
     p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2),
                FieldCoord::toPixelY(FieldCoord::H / 2),
-               (int)(FieldCoord::G * FieldCoord::PX_PER_M_X),
-               (int)(FieldCoord::H * FieldCoord::PX_PER_M_Y));
+               (int)(FieldCoord::G * FieldCoord::PX_PER_M),
+               (int)(FieldCoord::H * FieldCoord::PX_PER_M));
 
     // 우측 페널티 에어리어
     p.drawRect(FieldCoord::toPixelX(FieldCoord::A / 2 - FieldCoord::G),
                FieldCoord::toPixelY(FieldCoord::H / 2),
-               (int)(FieldCoord::G * FieldCoord::PX_PER_M_X),
-               (int)(FieldCoord::H * FieldCoord::PX_PER_M_Y));
+               (int)(FieldCoord::G * FieldCoord::PX_PER_M),
+               (int)(FieldCoord::H * FieldCoord::PX_PER_M));
 
     // 마크 크기 (픽셀)
-    int mark_sz = (int)(FieldCoord::MARK_SZ / 2.0 * FieldCoord::PX_PER_M_X);
+    int mark_sz = (int)(FieldCoord::MARK_SZ / 2.0 * FieldCoord::PX_PER_M);
     if (mark_sz < 2)
       mark_sz = 2;
 
@@ -141,7 +134,7 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
     // 코너 아크 (L_ARC > 0인 경우만)
     if (FieldCoord::L_ARC > 0.0)
     {
-      int r = (int)(FieldCoord::L_ARC * FieldCoord::PX_PER_M_X);
+      int r = (int)(FieldCoord::L_ARC * FieldCoord::PX_PER_M);
       int x_l = FieldCoord::toPixelX(-FieldCoord::A / 2);
       int x_r = FieldCoord::toPixelX(FieldCoord::A / 2);
       int y_t = FieldCoord::toPixelY(FieldCoord::B / 2);
@@ -156,8 +149,8 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
   }
 
   scene = new QGraphicsScene(this);
-  qnode->robot0.x = FieldCoord::MAP_W / 2; // 로봇 시작 포인트, 맵의 중앙
-  qnode->robot0.y = FieldCoord::MAP_H / 2;
+  qnode->robot0.x = FieldCoord::toPixelX(0); // 로봇 시작 포인트, 필드 중앙
+  qnode->robot0.y = FieldCoord::toPixelY(0);
 
   QObject::connect(qnode, SIGNAL(rosShutDown()), this, SLOT(close()));
 }
@@ -167,25 +160,6 @@ void MainWindow::main()
   // INIT
   setting();     // 공 선택 & 파라미터 불러오기 & UI에서 오도메트리 값 설정
   select_ball(); // UDP 통신에서 받은 다른 로봇의 공데이터로 공 위치 설정 & obstacle 위치 계산
-
-  if (qnode->corner_kick_receiver_ && qnode->gameMSG.state == 7 && qnode->gameMSG.position == 3)
-  {
-    float predicted_ball_x = qnode->ball.x + qnode->ball.speed_x * qnode->visionMSG.Ball_speed_level;
-    float predicted_ball_y = qnode->ball.y + qnode->ball.speed_y * qnode->visionMSG.Ball_speed_level;
-    qnode->technical_challengeMSG.ball_in_approach =
-        cornerkick_challenge::is_ball_in_approach_circle(
-            qnode->robot0.x, qnode->robot0.y,
-            predicted_ball_x, predicted_ball_y,
-            qnode->robot0.z)
-            ? 1
-            : 0;
-    qnode->publish_technical_challenge();
-  }
-
-  if (qnode->local_helper_)
-  {
-    qnode->publish_technical_challenge();
-  }
 
   std::vector<float> obs_x, obs_y;
   for (const auto &obs : qnode->obstacles)
@@ -226,8 +200,10 @@ void MainWindow::Print_Screen_Ball()
   QBrush yellowBrush(Qt::yellow);
   QBrush blueBrush(Qt::blue);
   QBrush pinkBrush(QColor(255, 105, 180));
-  bool ball_in_range = (qnode->ball.x >= 80 && qnode->ball.x <= 1020 &&
-                        qnode->ball.y >= 80 && qnode->ball.y <= 720);
+  bool ball_in_range = (qnode->ball.x >= FieldCoord::BALL_TRUST_X_MIN &&
+                        qnode->ball.x <= FieldCoord::BALL_TRUST_X_MAX &&
+                        qnode->ball.y >= FieldCoord::BALL_TRUST_Y_MIN &&
+                        qnode->ball.y <= FieldCoord::BALL_TRUST_Y_MAX);
   if (ball_in_range && (qnode->visionMSG.Ball_2d_X != 0 || qnode->visionMSG.Ball_2d_Y != 0)
       && qnode->ball.noballcnt == 0)
   {
@@ -262,57 +238,11 @@ void MainWindow::select_ball()
   // 로봇의 공 데이터 중 가장 공과 가까운 로봇의 데이터로 설정 & obstacle 의
   // 위치 설정
 
-  // 로봇의 공 데이터 초기화
-  qnode->robot1.b -= 0.005;
-  qnode->robot2.b -= 0.005;
-  qnode->robot3.b -= 0.005;
-  qnode->robot4.b -= 0.005;
-
-  // 다른 로봇에서 공 데이터를 받아오지 않으면, 해당 로봇의 데이터 비활성화
-  if (qnode->robot1.b <= 0)
-  {
-    qnode->robot1.x = 0;
-    qnode->robot1.y = 0;
-    qnode->robot1.z = 0;
-    qnode->robot1.b = 0;
-    qnode->robot1.state = 0;
-    qnode->ball1.x = 0;
-    qnode->ball1.y = 0;
-    qnode->ball1.d = 999999;
-  }
-  if (qnode->robot2.b <= 0)
-  {
-    qnode->robot2.x = 0;
-    qnode->robot2.y = 0;
-    qnode->robot2.z = 0;
-    qnode->robot2.b = 0;
-    qnode->robot2.state = 0;
-    qnode->ball2.x = 0;
-    qnode->ball2.y = 0;
-    qnode->ball2.d = 999999;
-  }
-  if (qnode->robot3.b <= 0)
-  {
-    qnode->robot3.x = 0;
-    qnode->robot3.y = 0;
-    qnode->robot3.z = 0;
-    qnode->robot3.b = 0;
-    qnode->robot3.state = 0;
-    qnode->ball3.x = 0;
-    qnode->ball3.y = 0;
-    qnode->ball3.d = 999999;
-  }
-  if (qnode->robot4.b <= 0)
-  {
-    qnode->robot4.x = 0;
-    qnode->robot4.y = 0;
-    qnode->robot4.z = 0;
-    qnode->robot4.b = 0;
-    qnode->robot4.state = 0;
-    qnode->ball4.x = 0;
-    qnode->ball4.y = 0;
-    qnode->ball4.d = 999999;
-  }
+  // 팀 로봇 신선도 decay + 미수신 시 데이터 비활성화 (UDP 데이터 처리)
+  team_udp_receiver::tick(qnode->robot1, qnode->ball1);
+  team_udp_receiver::tick(qnode->robot2, qnode->ball2);
+  team_udp_receiver::tick(qnode->robot3, qnode->ball3);
+  team_udp_receiver::tick(qnode->robot4, qnode->ball4);
 
   // ROBOT_VEC 크기에 맞게 obstacles 벡터 크기 조정
   size_t vec_size = qnode->visionMSG.ROBOT_VEC_X.size();
@@ -364,8 +294,8 @@ void MainWindow::select_ball()
         (qnode->visionMSG.Ball_2d_X * FieldCoord::MM2PX * sin((qnode->robot0.z) * M_PI / 180) -
          qnode->visionMSG.Ball_2d_Y * FieldCoord::MM2PX * cos((qnode->robot0.z) * M_PI / 180));
 
-    if (computed_x >= 80 && computed_x <= 1020 &&
-        computed_y >= 80 && computed_y <= 720)
+    if (computed_x >= FieldCoord::BALL_TRUST_X_MIN && computed_x <= FieldCoord::BALL_TRUST_X_MAX &&
+        computed_y >= FieldCoord::BALL_TRUST_Y_MIN && computed_y <= FieldCoord::BALL_TRUST_Y_MAX)
     {
       qnode->ball.noballcnt = 0;
       qnode->ball.x = computed_x;
@@ -399,74 +329,15 @@ void MainWindow::select_ball()
   }
 
   // 공 감지했어도 필드 밖으로 계산된 경우(noballcnt > 0)엔 신뢰하지 않음
-  double min_d;
-  if (qnode->visionMSG.Ball_D == 0 || qnode->ball.noballcnt > 0)
-  {
-    min_d = 999999;
-  }
-  else
-  {
-    min_d = qnode->visionMSG.Ball_D * FieldCoord::MM2PX;
-  }
-  int min_i = 0;
+  double own_ball_dist_px =
+      (qnode->visionMSG.Ball_D == 0 || qnode->ball.noballcnt > 0)
+          ? 999999.0
+          : qnode->visionMSG.Ball_D * FieldCoord::MM2PX;
 
-  // 각 로봇에서 측정된 공 데이터를 비교하여 해당 공 데이터가 최소값일
-  // 경우(측정된 로봇과 가장 가까울 경우) 해당 값 적용
-  // (0,0)인 UDP 공 데이터는 공 미감지 상태이므로 제외
-  if (min_d > qnode->ball1.d && (qnode->ball1.x != 0 || qnode->ball1.y != 0))
-  {
-    min_d = qnode->ball1.d;
-    min_i = 1;
-  }
-  if (min_d > qnode->ball2.d && (qnode->ball2.x != 0 || qnode->ball2.y != 0))
-  {
-    min_d = qnode->ball2.d;
-    min_i = 2;
-  }
-  if (min_d > qnode->ball3.d && (qnode->ball3.x != 0 || qnode->ball3.y != 0))
-  {
-    min_d = qnode->ball3.d;
-    min_i = 3;
-  }
-  if (min_d > qnode->ball4.d && (qnode->ball4.x != 0 || qnode->ball4.y != 0))
-  {
-    min_d = qnode->ball4.d;
-    min_i = 4;
-  }
- 
-  // 최소값인 공 데이터가 해당 로봇이 아닐때 최소값인 공 데이터 적용
-  // if (min_i != 0 &&
-  //     (qnode->ball.noballcnt == 0 || qnode->ball.noballcnt > 100))
-  
-  if (min_i != 0 && qnode->ball.noballcnt > 10)
-  {
-    if (min_i == 1)
-    {
-      qnode->ball.x = qnode->ball1.x;
-      qnode->ball.y = qnode->ball1.y;
-    }
-    if (min_i == 2)
-    {
-      qnode->ball.x = qnode->ball2.x;
-      qnode->ball.y = qnode->ball2.y;
-    }
-    if (min_i == 3)
-    {
-      qnode->ball.x = qnode->ball3.x;
-      qnode->ball.y = qnode->ball3.y;
-    }
-    if (min_i == 4)
-    {
-      qnode->ball.x = qnode->ball4.x;
-      qnode->ball.y = qnode->ball4.y;
-    }
-    qnode->ball.noballcnt = 25;
-    qnode->ball.from_udp = true;
-  }
-  else
-  {
-    qnode->ball.from_udp = false;
-  }
+  // 자신 + 팀 로봇들의 공 관측 중 가장 가까운 것을 선택 (UDP 데이터 처리)
+  team_udp_receiver::selectNearestBall(
+      qnode->ball, own_ball_dist_px,
+      qnode->ball1, qnode->ball2, qnode->ball3, qnode->ball4);
 
   // 공/장애물 좌표 클램핑 (필드 경계 픽셀 기준)
   auto clampX = [](auto &v)
@@ -540,10 +411,6 @@ void MainWindow::setting()
     param = share_dir + "/resources/param/PARAM6.txt";
 #endif
 
-    if(qnode->high_kicker_)
-    {
-      param = share_dir + "/resources/param/HIGH_KICKER_PARAM.txt";
-    }
     ifstream Last_Index_Num_IN(param);
     if (Last_Index_Num_IN.is_open())
     {
@@ -869,15 +736,6 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
       cvt_Print_xy(qnode->robot0.y) - cos(qnode->robot0.z * DEG2RAD) * 10,
       blackPen3);
 
-  if (qnode->corner_kick_receiver_ && qnode->gameMSG.state == 7 && qnode->gameMSG.position == 3)
-  {
-    cornerkick_challenge::draw_approach_circle(
-        scene,
-        cvt_Print_xy(qnode->robot0.x),
-        cvt_Print_xy(qnode->robot0.y)+5,
-        qnode->robot0.z);
-  }
-
   if (qnode->robot1.x != 0 || qnode->robot1.y != 0)
   {
     QPolygonF robot1_poly = create_Print_robot(qnode->robot1);
@@ -1196,34 +1054,10 @@ void MainWindow::on_btn_set_6_clicked()
 
 void MainWindow::on_btn_set_7_clicked()
 {
-  using namespace FieldCoord;
-  if (qnode->high_kicker_)
-  {
-    qnode->robot0.z = 90.0;
-    setRobotPos(qnode, toPixelX(-A / 2 + G), toPixelY(0), 0);
-  }
-  else if(qnode->local_helper_)
-  {
-    qnode->robot0.z = 180.0;
-    qnode->local_helper_dir = 0;
-    setRobotPos(qnode, toPixelX(-A / 2 + E + (G - E) / 2), toPixelY(F / 2), 0);
-  }
 }
 
 void MainWindow::on_btn_set_8_clicked()
 {
-  using namespace FieldCoord;
-  if (qnode->high_kicker_)
-  {
-    qnode->robot0.z = -90.0;
-    setRobotPos(qnode, toPixelX(A / 2 - G), toPixelY(0), 0);
-  }
-  else if(qnode->local_helper_)
-  {
-    qnode->robot0.z = 0.0;
-    qnode->local_helper_dir = 1;
-    setRobotPos(qnode, toPixelX(A / 2 - E - (G - E) / 2), toPixelY(-F / 2), 0);
-  }
 }
 
 void MainWindow::on_btn_set_auto_clicked()

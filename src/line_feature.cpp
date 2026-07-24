@@ -43,8 +43,8 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
         double ball_mm_x    = qnode->visionMSG.Ball_2d_X;
         double ball_mm_y    = qnode->visionMSG.Ball_2d_Y;
         ball_visible        = (ball_mm_x != 0.0 || ball_mm_y != 0.0);
-        ball_field_px_x     = robot0_x + (-1) * (ball_mm_x / 1000.0 * FieldCoord::PX_PER_M_X * cos(yaw_rad) + ball_mm_y / 1000.0 * FieldCoord::PX_PER_M_X * sin(yaw_rad));
-        ball_field_px_y     = robot0_y + (ball_mm_x / 1000.0 * FieldCoord::PX_PER_M_Y * sin(yaw_rad) - ball_mm_y / 1000.0 * FieldCoord::PX_PER_M_Y * cos(yaw_rad));
+        ball_field_px_x     = robot0_x + (-1) * (ball_mm_x / 1000.0 * FieldCoord::PX_PER_M * cos(yaw_rad) + ball_mm_y / 1000.0 * FieldCoord::PX_PER_M * sin(yaw_rad));
+        ball_field_px_y     = robot0_y + (ball_mm_x / 1000.0 * FieldCoord::PX_PER_M * sin(yaw_rad) - ball_mm_y / 1000.0 * FieldCoord::PX_PER_M * cos(yaw_rad));
 
         if (qnode->vision_data_cnt > 0 && qnode->vision_data_size / qnode->vision_data_cnt <= 1)
         {
@@ -107,8 +107,8 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
             if (jump >= MIN_JUMP_PX && jump < MAX_JUMP_PX && std_px < MAX_SPREAD_PX)
             {
                 std::lock_guard<std::mutex> robot0_lock(qnode->robot0_mutex);
-                qnode->robot0.x = (int)wx;
-                qnode->robot0.y = (int)wy;
+                qnode->robot0.x = wx;
+                qnode->robot0.y = wy;
             }
 
             cdf.resize(qnode->particle_num);
@@ -185,7 +185,7 @@ void Line_Feature::featureCalc(QNode *qnode, double particle_range)
     }
 }
 
-double Line_Feature::weight_calculate(int PT_X, int PT_Y, float PT_Z, int NOW_X, int NOW_Y, vector<VISION_POINT> &vect)
+double Line_Feature::weight_calculate(double PT_X, double PT_Y, float PT_Z, double NOW_X, double NOW_Y, vector<VISION_POINT> &vect)
 {
     // PRE CONDITION : PT_X, PT_Y, PT_Z(파티클 yaw deg), ROBOT_X, ROBOT_Y, VECTOR<VISION_POINT>
     // POST CONDITION : weight
@@ -205,8 +205,8 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, float PT_Z, int NOW_X,
         // 파티클 θ로 관측 벡터 재변환 (robot-frame mm → world-frame pixel)
         double raw_x_m = vect[i].RAW_X_MM / 1000.0;
         double raw_y_m = vect[i].RAW_Y_MM / 1000.0;
-        int vec_x = (int)((-raw_x_m * cp - raw_y_m * sp) * FieldCoord::PX_PER_M_X);
-        int vec_y = (int)(( raw_x_m * sp - raw_y_m * cp) * FieldCoord::PX_PER_M_Y);
+        double vec_x = (-raw_x_m * cp - raw_y_m * sp) * FieldCoord::PX_PER_M;
+        double vec_y = ( raw_x_m * sp - raw_y_m * cp) * FieldCoord::PX_PER_M;
 
         ptx = PT_X + vec_x;
         pty = PT_Y + vec_y;
@@ -240,14 +240,14 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, float PT_Z, int NOW_X,
             if (!Filter::passBearing(obs_angle, exp_angle))
                 continue;
 
-            double dx_m = (filter.Local_point_x[j] - ptx) / FieldCoord::PX_PER_M_X;
-            double dy_m = (filter.Local_point_y[j] - pty) / FieldCoord::PX_PER_M_Y;
+            double dx_m = (filter.Local_point_x[j] - ptx) / FieldCoord::PX_PER_M;
+            double dy_m = (filter.Local_point_y[j] - pty) / FieldCoord::PX_PER_M;
             double dis  = sqrt(dx_m * dx_m + dy_m * dy_m);
 
             if ((FieldCoord::FeatureType)vect[i].FEATURE_TYPE == FieldCoord::L_SHAPE)
             {
-                double actual_dist_m = sqrt(pow((filter.Local_point_x[j] - PT_X) / FieldCoord::PX_PER_M_X, 2)
-                                          + pow((filter.Local_point_y[j] - PT_Y) / FieldCoord::PX_PER_M_Y, 2));
+                double actual_dist_m = sqrt(pow((filter.Local_point_x[j] - PT_X) / FieldCoord::PX_PER_M, 2)
+                                          + pow((filter.Local_point_y[j] - PT_Y) / FieldCoord::PX_PER_M, 2));
                 double dist_diff = fabs(actual_dist_m - vect[i].DISTANCE / 1000.0);
                 if (dist_diff > L_DIST_GATE_M)
                     continue;
@@ -295,11 +295,11 @@ double Line_Feature::weight_calculate(int PT_X, int PT_Y, float PT_Z, int NOW_X,
         double uy      = vy / dist_px;
 
         // normal(dn): 방향 따라, perp(dp): 수직
-        double dn_m = (ux * err_x_px + uy * err_y_px) / FieldCoord::PX_PER_M_X;
-        double dp_m = (-uy * err_x_px + ux * err_y_px) / FieldCoord::PX_PER_M_X;
+        double dn_m = (ux * err_x_px + uy * err_y_px) / FieldCoord::PX_PER_M;
+        double dp_m = (-uy * err_x_px + ux * err_y_px) / FieldCoord::PX_PER_M;
 
         // 거리 비례 표준편차 (sigma_min = 0.05m)
-        double dist_m   = dist_px / FieldCoord::PX_PER_M_X;
+        double dist_m   = dist_px / FieldCoord::PX_PER_M;
         double sigma_n  = INV_NORM_VAR * dist_m + 0.05;
         double sigma_p  = INV_PERP_VAR * dist_m + 0.05;
 
