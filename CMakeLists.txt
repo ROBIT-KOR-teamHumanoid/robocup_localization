@@ -21,6 +21,12 @@ find_package(OpenCV REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 
+# onnxruntime (C++) — 학습형 ONNX 추론
+set(ONNXRUNTIME_ROOTDIR "/home/bws/onnxruntime" CACHE PATH "onnxruntime C++ install root")
+if(NOT EXISTS "${ONNXRUNTIME_ROOTDIR}/include/onnxruntime_cxx_api.h")
+  message(FATAL_ERROR "onnxruntime C++ 헤더를 찾을 수 없습니다: ${ONNXRUNTIME_ROOTDIR}/include (ONNXRUNTIME_ROOTDIR 확인)")
+endif()
+
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RobocupLocalization.msg"
 )
@@ -39,7 +45,7 @@ install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
 )
 
-file(GLOB PRO_SOURCE_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  src/*.cpp src/filter/*.cpp src/get_params/*.cpp src/robot_odom_model/*.cpp src/udp/*.cpp)
+file(GLOB PRO_SOURCE_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  src/*.cpp src/filter/*.cpp src/get_params/*.cpp src/robot_odom_model/*.cpp src/udp/*.cpp src/onnx_infer/*.cpp)
 file(GLOB PRO_UI_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  ui/*.ui)
 file(GLOB PRO_INCLUDE_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  include/${PROJECT_NAME}/*.h include/${PROJECT_NAME}/*.hpp)
 list(FILTER PRO_INCLUDE_DIR EXCLUDE REGEX "filter\\.hpp$")
@@ -51,6 +57,7 @@ include_directories(
 	include/
 	${CMAKE_CURRENT_BINARY_DIR}
 	${CMAKE_CURRENT_SOURCE_DIR}   # robot_config.h 검색 경로
+	${ONNXRUNTIME_ROOTDIR}/include
 )
 set(EXE_TARGET ${PROJECT_NAME}_bin)
 add_executable(${EXE_TARGET}
@@ -64,7 +71,12 @@ add_executable(${EXE_TARGET}
 set_target_properties(${EXE_TARGET} PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
 ament_target_dependencies(${EXE_TARGET} rclcpp Boost humanoid_interfaces gamecontroller vision_interfaces OpenCV ament_index_cpp)
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
-target_link_libraries(${EXE_TARGET} Qt5::Widgets Qt5::Core Qt5::Gui Qt5::Network ${OpenCV_LIBRARIES} "${cpp_typesupport_target}")
+target_link_libraries(${EXE_TARGET} Qt5::Widgets Qt5::Core Qt5::Gui Qt5::Network ${OpenCV_LIBRARIES} "${cpp_typesupport_target}" "${ONNXRUNTIME_ROOTDIR}/lib/libonnxruntime.so")
+
+# libonnxruntime.so.1 런타임 검색 경로 (RPATH)
+set_target_properties(${EXE_TARGET} PROPERTIES
+  BUILD_RPATH "${ONNXRUNTIME_ROOTDIR}/lib"
+  INSTALL_RPATH "${ONNXRUNTIME_ROOTDIR}/lib")
 install(TARGETS ${EXE_TARGET} DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY config DESTINATION share/${PROJECT_NAME})

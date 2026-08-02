@@ -27,7 +27,7 @@ QNode::QNode(int argc, char **argv)
   getParams();
 
   imu_sub_ = node->create_subscription<humanoid_interfaces::msg::ImuMsg>(imu_topic, rclcpp::QoS(rclcpp::KeepLast(1)).reliable().best_effort(), std::bind(&QNode::imuCallback, this, std::placeholders::_1));
-  vision_sub_ = node->create_subscription<vision_interfaces::msg::Robocupvision>(vision_topic, 1, std::bind(&QNode::visionCallback, this, std::placeholders::_1));
+  vision_sub_ = node->create_subscription<vision_interfaces::msg::Robocupvision>(vision_topic, 3, std::bind(&QNode::visionCallback, this, std::placeholders::_1));
   vision_feature_sub_ = node->create_subscription<vision_interfaces::msg::Robocupvisionfeature>(vision_feature_topic, 4, std::bind(&QNode::visionFeatureCallback, this, std::placeholders::_1));
   ik_sub_ = node->create_subscription<humanoid_interfaces::msg::IkCoordMsg>(ik_topic, 1, std::bind(&QNode::ikCallback, this, std::placeholders::_1));
   game_control_sub_ = node->create_subscription<gamecontroller::msg::Gamecontroldata>(game_control_topic, 5, std::bind(&QNode::gameControlCallback, this, std::placeholders::_1));
@@ -43,6 +43,33 @@ QNode::QNode(int argc, char **argv)
   }
 
   loop_hz = 20;
+
+  // ===== Learned (ONNX) localization 초기화 =====
+  if (learned_mlp_enable_ || learned_reloc_enable_)
+  {
+    learned_loc::LearnedConfig lc;
+    lc.mlp_enable = learned_mlp_enable_;
+    lc.reloc_enable = learned_reloc_enable_;
+    lc.mlp_model_path = learned_mlp_model_;
+    lc.reloc_model_path = learned_reloc_model_;
+    lc.reloc_topk = learned_reloc_topk_;
+    lc.sign_right = learned_sign_right_;
+    lc.sign_forward = learned_sign_forward_;
+
+    if (!learned_.init(lc))
+    {
+      RCLCPP_WARN(node->get_logger(),
+                  "[learned] ONNX 로드 실패: %s (해당 추론 비활성)",
+                  learned_.last_error().c_str());
+    }
+    else
+    {
+      RCLCPP_INFO(node->get_logger(),
+                  "[learned] mlp=%s reloc=%s",
+                  learned_.mlp_ready() ? "on" : "off",
+                  learned_.reloc_ready() ? "on" : "off");
+    }
+  }
 
   if (soccer_mode_)
     startMclProcessing();
@@ -196,7 +223,9 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
                            !msg->t_confidence.empty() ||
                            !msg->cross_confidence.empty();
 
-  bool mcl_active = (gameMSG.state == 3) || (gameMSG.state == 1 && gameMSG.ready_count >= 2);
+  // gamecontroller 없이 동작: 게임 상태 게이팅 무력화 (되돌리려면 아래 원식 복원)
+  // bool mcl_active = (gameMSG.state == 3) || (gameMSG.state == 1 && gameMSG.ready_count >= 2);
+  bool mcl_active = true;
   if (soccer_mode_ && has_real_features && !Likelihood.vision_point_vect.empty() && visionMSG.flag_pan == 0 && mcl_active)
   {
     // RCLCPP_INFO(node->get_logger(),
@@ -220,6 +249,65 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
     Likelihood.vision_point_vect.clear();
     vision_data_cnt  = 0;
     vision_data_size = 0;
+  }
+
+  // ===== 학습형(ONNX) 추론: vision_feature 프레임과 동기 실행 =====
+  if (learned_mlp_enable_ || learned_reloc_enable_)
+  {
+    if (has_real_features)
+    {
+      runLearnedInference(msg, robot0_z);
+    }
+    else
+    {
+      // 특징점이 하나도 없으면 obs가 전부 valid=0 + yaw만 남아 의미 없는
+      // pose가 나온다. 추론을 건너뛰고 직전 결과를 무효화한다.
+      std::lock_guard<std::mutex> lock(learned_mutex_);
+      learned_mlp_result_ = learned_loc::MlpResult{};
+      learned_reloc_result_ = learned_loc::RelocResult{};
+    }
+  }
+}
+
+void QNode::runLearnedInference(
+    const vision_interfaces::msg::Robocupvisionfeature::SharedPtr &msg,
+    double yaw_deg)
+{
+  using learned_loc::FeaturePoint;
+
+  auto pack = [](const std::vector<double> &vx,
+                 const std::vector<double> &vy) {
+    std::vector<FeaturePoint> out;
+    const size_t n = std::min(vx.size(), vy.size());
+    out.reserve(n);
+    for (size_t i = 0; i < n; ++i)
+      out.push_back({vx[i], vy[i]});
+    return out;
+  };
+
+  const auto corner = pack(msg->corner_point_vec_x, msg->corner_point_vec_y);
+  const auto t_shape = pack(msg->t_point_vec_x, msg->t_point_vec_y);
+  const auto cross = pack(msg->cross_point_vec_x, msg->cross_point_vec_y);
+  // goalpost 좌표 소스가 아직 없으므로 valid=0 으로 채워진다.
+  const std::vector<FeaturePoint> goalpost;
+
+  const auto obs =
+      learned_.buildObs(corner, t_shape, cross, goalpost, yaw_deg);
+
+  learned_loc::MlpResult mlp;
+  learned_loc::RelocResult reloc;
+
+  if (learned_mlp_enable_ && learned_.mlp_ready())
+    mlp = learned_.runMlp(obs);
+  if (learned_reloc_enable_ && learned_.reloc_ready())
+    reloc = learned_.runReloc(obs);
+
+  {
+    std::lock_guard<std::mutex> lock(learned_mutex_);
+    if (learned_mlp_enable_)
+      learned_mlp_result_ = mlp;
+    if (learned_reloc_enable_)
+      learned_reloc_result_ = reloc;
   }
 }
 

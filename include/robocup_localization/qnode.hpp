@@ -40,6 +40,7 @@
 #include "../objects/obstacle.hpp"
 #include "../objects/ball.hpp"
 #include "../objects/line_feature.hpp"
+#include "robocup_localization/onnx_infer.hpp"
 
 #define DEG2RAD (M_PI / 180)
 
@@ -189,6 +190,20 @@ public:
   double foot_align_odom_scale_ = 0.3;
   bool noise_enable_ = true;
 
+  // ===== Learned (ONNX) localization =====
+  bool learned_mlp_enable_ = false;
+  bool learned_reloc_enable_ = false;
+  std::string learned_mlp_model_;
+  std::string learned_reloc_model_;
+  int learned_reloc_topk_ = 30;
+  double learned_sign_right_ = -1.0;
+  double learned_sign_forward_ = 1.0;
+
+  learned_loc::OnnxLocalizer learned_;
+  std::mutex learned_mutex_;                    // 결과 공유 보호 (ROS vs Qt)
+  learned_loc::MlpResult learned_mlp_result_;   // 필드 프레임(m)
+  learned_loc::RelocResult learned_reloc_result_;
+
   // Thread safety: vision_point_vect 공유 보호
   std::mutex vision_mutex;
   // Thread safety: robot0 공유 보호 (ROS 콜백 스레드 , Qt 메인 스레드)
@@ -210,6 +225,9 @@ private:
   void udpCallback(const humanoid_interfaces::msg::Udp2master::SharedPtr msg);
   void masterCallback(const humanoid_interfaces::msg::Master2localization::SharedPtr msg);
   void yaw_compensation();
+  void runLearnedInference(
+      const vision_interfaces::msg::Robocupvisionfeature::SharedPtr &msg,
+      double yaw_deg);
 
   rclcpp::Subscription<humanoid_interfaces::msg::ImuMsg>::SharedPtr imu_sub_;
   rclcpp::Subscription<vision_interfaces::msg::Robocupvision>::SharedPtr vision_sub_;

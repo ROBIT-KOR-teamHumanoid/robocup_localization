@@ -539,6 +539,48 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
     }
   }
 
+  // ===== 학습형(ONNX) 추론 결과 시각화 =====
+  {
+    learned_loc::MlpResult mlp;
+    learned_loc::RelocResult reloc;
+    {
+      std::lock_guard<std::mutex> lock(qnode->learned_mutex_);
+      mlp = qnode->learned_mlp_result_;
+      reloc = qnode->learned_reloc_result_;
+    }
+
+    // clsreg 재위치추정 후보: 청록 점(확률 클수록 크게)
+    if (qnode->learned_reloc_enable_ && reloc.valid)
+    {
+      QPen cyanPen(QColor(0, 200, 200));
+      cyanPen.setWidth(1);
+      QBrush cyanBrush(QColor(0, 200, 200, 140));
+      for (const auto &c : reloc.candidates)
+      {
+        double px = cvt_Print_xy(FieldCoord::toPixelX(c.x_m));
+        double py = cvt_Print_xy(FieldCoord::toPixelY(c.y_m));
+        int r = 2 + (int)(c.prob * 10.0);
+        if (r > 8) r = 8;
+        scene->addEllipse(px - r, py - r, r * 2, r * 2, cyanPen, cyanBrush);
+      }
+    }
+
+    // vision_imu 단일프레임 pose: 자홍 원 + 십자
+    if (qnode->learned_mlp_enable_ && mlp.valid)
+    {
+      QColor magenta(255, 0, 255);
+      QPen mgPen(magenta);
+      mgPen.setWidth(3);
+      QBrush mgBrush(QColor(255, 0, 255, 90));
+      double px = cvt_Print_xy(FieldCoord::toPixelX(mlp.x_m));
+      double py = cvt_Print_xy(FieldCoord::toPixelY(mlp.y_m));
+      int r = 10;
+      scene->addEllipse(px - r, py - r, r * 2, r * 2, mgPen, mgBrush);
+      scene->addLine(px - r, py, px + r, py, mgPen);
+      scene->addLine(px, py - r, px, py + r, mgPen);
+    }
+  }
+
   // PRINT TIMESTAMP
   if (qnode->robot0.TIME_STAMP.size() > 0)
   {

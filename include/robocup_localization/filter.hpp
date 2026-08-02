@@ -46,12 +46,18 @@ public:
 
     // 필터 파라미터
     // bearing 임계값 (라디안). 예상 방향과 관측 방향 차이가 이 값 초과이면 랜드마크 skip.
+    // 각도 게이트라 필드 크기와 무관 → 스케일하지 않는다.
     static constexpr double BEARING_MAX_RAD   = M_PI / 9.0;  // 20°
     static constexpr double COS_DEAD_ZONE     = 0.3;          // |cos(yaw-pan)| < 0.3 이면 y부호 판별 불가
 
     // pre-filter 거리 임계값 (미터). 가장 가까운 랜드마크가 이 값 초과이면 관측 제거.
-    double OBS_FILTER_DIST_M = 1.7;
-    double OBS_FILTER_X_FEATURE_DIST_M = 2.0; // X-shape 관측 시 pre-filter 거리 임계값 (미터)
+    // 기준값은 S-Field 튜닝치이며 FieldCoord::FIELD_SCALE 로 현재 필드에 맞춘다.
+    static constexpr double OBS_FILTER_DIST_REF_M = 1.7;
+    static constexpr double OBS_FILTER_X_FEATURE_DIST_REF_M = 2.0;
+    double OBS_FILTER_DIST_M = OBS_FILTER_DIST_REF_M * FieldCoord::FIELD_SCALE;
+    // X-shape 관측 시 pre-filter 거리 임계값 (미터)
+    double OBS_FILTER_X_FEATURE_DIST_M =
+        OBS_FILTER_X_FEATURE_DIST_REF_M * FieldCoord::FIELD_SCALE;
 
     static constexpr double LARGE_DIST        = 99999999.0;
 

@@ -72,6 +72,17 @@ namespace FieldCoord {
   #error "필드 타입 미정의. robot_config.h 에 FIELD_SMALL / FIELD_MIDDLE / FIELD_LARGE 중 하나를 정의하세요."
 #endif
 
+// 필터 상수 스케일
+// ============================================================
+// MCL 필터의 거리 도메인 임계값들은 S-Field(9m x 6m)에서 튜닝됐다.
+// 필드가 커지면 랜드마크 간격과 관측 거리가 함께 커지고, 거리에 비례하는
+// 관측 오차도 같이 커지므로 그 임계값들을 필드 길이 비율로 확대해야 한다.
+//   S: 1.00 / M: 1.56 / L: 2.44
+// 각도·무차원 계수와 거리 비례 계수(INV_*_VAR)는 이미 스케일 불변이라
+// 곱하지 않는다.
+constexpr double TUNE_REF_A  = 9.0;        // 튜닝 기준 필드 길이 (S-Field)
+constexpr double FIELD_SCALE = A / TUNE_REF_A;
+
 // 맵 ui 파라미터
 constexpr int    MAP_W    = 1100;          // 맵 이미지 너비
 constexpr int    MAP_H    = 800;           // 맵 이미지 높이
@@ -122,7 +133,7 @@ constexpr double toFieldY(double py)
 constexpr double MIRROR_Y_PX = 2.0 * ORIGIN_Y_PX + WORLD_H * PX_PER_M;
 
 // 파티클 필터 서클 마진 (0.5m to 픽셀)
-constexpr int CIRCLE_MARGIN_PX = static_cast<int>(0.5 * PX_PER_M);
+constexpr int CIRCLE_MARGIN_PX = static_cast<int>(1.5 * PX_PER_M);
 
 // T자 특징점 감지 시 추가 서클 마진 (1.5m to 픽셀)
 constexpr int T_SHAPE_CIRCLE_MARGIN_PX = static_cast<int>(1.5 * PX_PER_M);

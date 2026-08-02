@@ -2,7 +2,7 @@
   ros__parameters:
     robot_feature: "adult" # "kids" or "adult"
 
-    Topic:
+    topic:
       imu_sub_topic: "Imu"
       vision_sub_topic: "vision"
       vision_feature_sub_topic: "vision_feature"
@@ -12,7 +12,7 @@
       master_sub_topic: "master2local"
       local_pub_topic: "localization"
 
-    Particle_filter:
+    particle_filter:
       weight_update_threshold: 4.0
       particle_nums: 8000
       noise_enable: false
@@ -21,8 +21,14 @@
     Fov: 
       fov_enable: true
       fov_angle: 60.0 # degrees
-      fov_distance: 1.5 # m
+      fov_distance: 4.0 # m
 
-    inference:
-      enable: true
-      inference_model: "/home/bws/colcon_ws/src/robocup_localization/config/inference_model.pt"
+    # 각 모델을 독립적으로 on/off. 입력은 vision_feature + IMU(yaw) 프레임.
+    learned:
+      mlp_enable: true          # vision_imu.onnx: 단일프레임 pose 추정
+      reloc_enable: false       # clsreg.onnx: 재위치추정 후보 격자
+      mlp_model: "/home/bws/ros2_ws/src/robocup_learned_localization/models/vision_imu.onnx"
+      reloc_model: "/home/bws/ros2_ws/src/robocup_learned_localization/models/clsreg.onnx"
+      reloc_topk: 30            # 상위 확률 셀 개수
+      sign_right: -1.0          # obs 좌표 부호(실기 대조 후 조정): right = sign_right*(point_vec_x/1000)
+      sign_forward: 1.0         #                                   forward = sign_forward*(point_vec_y/1000)

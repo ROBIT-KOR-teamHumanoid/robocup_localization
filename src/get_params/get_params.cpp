@@ -35,4 +35,21 @@ void QNode::getParams()
     foot_align_odom_scale_ = node->get_parameter("particle_filter.foot_align_odom_scale").as_double();
     pt.resize(particle_num);
     soccer_mode_ = node->get_parameter("setup_mode.Soccer_mode").as_bool();
+
+    // ===== Learned (ONNX) localization =====
+    node->declare_parameter("learned.mlp_enable", false);
+    node->declare_parameter("learned.reloc_enable", false);
+    node->declare_parameter("learned.mlp_model", "");
+    node->declare_parameter("learned.reloc_model", "");
+    node->declare_parameter("learned.reloc_topk", 30);
+    node->declare_parameter("learned.sign_right", -1.0);
+    node->declare_parameter("learned.sign_forward", 1.0);
+
+    learned_mlp_enable_ = node->get_parameter("learned.mlp_enable").as_bool();
+    learned_reloc_enable_ = node->get_parameter("learned.reloc_enable").as_bool();
+    learned_mlp_model_ = node->get_parameter("learned.mlp_model").as_string();
+    learned_reloc_model_ = node->get_parameter("learned.reloc_model").as_string();
+    learned_reloc_topk_ = node->get_parameter("learned.reloc_topk").as_int();
+    learned_sign_right_ = node->get_parameter("learned.sign_right").as_double();
+    learned_sign_forward_ = node->get_parameter("learned.sign_forward").as_double();
 }
