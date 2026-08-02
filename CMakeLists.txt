@@ -45,10 +45,33 @@ install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
 )
 
-file(GLOB PRO_SOURCE_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  src/*.cpp src/filter/*.cpp src/get_params/*.cpp src/robot_odom_model/*.cpp src/udp/*.cpp src/onnx_infer/*.cpp)
+# GLOB 대신 명시 목록. GLOB 은 파일을 추가·이동해도 CMake 재실행 전까지
+# 조용히 무시되어, "왜 수정이 반영 안 되지" 로 나타난다.
+set(PRO_SOURCE_DIR
+  src/main.cpp
+  src/gui/qnode.cpp
+  src/gui/main_window.cpp
+  src/gui/get_params.cpp
+  src/gui/odom_param_store.cpp
+  src/field_profile/field_coordinate.cpp
+  src/monte_carlo_localization/filter.cpp
+  src/monte_carlo_localization/mcl_node.cpp
+  src/monte_carlo_localization/motion_model.cpp
+  src/monte_carlo_localization/particle_reset.cpp
+  src/pre_processing/vision_processing.cpp
+  src/pre_processing/ball_tracker.cpp
+  src/monte_carlo_localization/mcl_engine.cpp
+  src/mlp_localization/mlp_onnx_infer.cpp
+  src/utils/team_udp_receiver.cpp
+  src/utils/yaw_compensator.cpp
+)
 file(GLOB PRO_UI_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  ui/*.ui)
-file(GLOB PRO_INCLUDE_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  include/${PROJECT_NAME}/*.h include/${PROJECT_NAME}/*.hpp)
-list(FILTER PRO_INCLUDE_DIR EXCLUDE REGEX "filter\\.hpp$")
+# moc 대상 = Q_OBJECT 를 가진 헤더만. 빠뜨리면 컴파일은 되고 링크에서
+# undefined reference to vtable 로 터진다.
+set(PRO_INCLUDE_DIR
+  include/gui/qnode.hpp
+  include/gui/main_window.hpp
+)
 file(GLOB PRO_RESOURCE_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  resource/*.qrc)
 qt5_wrap_ui(QT_UI_HPP ${PRO_UI_DIR})
 qt5_wrap_cpp(QT_MOC_HPP ${PRO_INCLUDE_DIR})

@@ -1,7 +1,7 @@
 #include <QApplication>
 #include <iostream>
 
-#include "../include/robocup_localization/main_window.hpp"
+#include "gui/main_window.hpp"
 
 int main(int argc, char *argv[])
 {
