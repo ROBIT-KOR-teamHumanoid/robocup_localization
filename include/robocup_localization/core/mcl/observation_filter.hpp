@@ -4,8 +4,8 @@
 #include <vector>
 #include <opencv2/core.hpp>
 
-#include "../field_coordinate/field_coordinate.hpp"
-#include "../objects/vision_point.hpp"
+#include "field_coordinate/field_coordinate.hpp"
+#include "robocup_localization/core/types/vision_point.hpp"
 
 #ifndef DEG2RAD
 #define DEG2RAD (M_PI / 180)

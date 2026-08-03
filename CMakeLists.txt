@@ -6,8 +6,9 @@ set(CMAKE_AUTOUIC OFF)
 set(CMAKE_AUTOMOC OFF)
 set(CMAKE_AUTORCC ON)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
@@ -23,7 +24,6 @@ find_package(ament_index_cpp REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RobocupLocalization.msg"
-  "msg/TechnicalChallenge.msg"
 )
 ament_export_dependencies(rosidl_default_runtime)
 
@@ -40,10 +40,25 @@ install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
 )
 
-file(GLOB PRO_SOURCE_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  src/*.cpp src/filter/*.cpp src/get_params/*.cpp src/robot_odom_model/*.cpp)
+file(GLOB PRO_SOURCE_DIR
+  RELATIVE ${CMAKE_SOURCE_DIR}
+  FOLLOW_SYMLINKS
+  src/*.cpp
+  src/core/*.cpp
+  src/core/mcl/*.cpp
+  src/app/*.cpp
+  src/ros/*.cpp
+  src/ui/*.cpp
+)
 file(GLOB PRO_UI_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  ui/*.ui)
-file(GLOB PRO_INCLUDE_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  include/${PROJECT_NAME}/*.h include/${PROJECT_NAME}/*.hpp)
-list(FILTER PRO_INCLUDE_DIR EXCLUDE REGEX "filter\\.hpp$")
+file(GLOB PRO_INCLUDE_DIR
+  RELATIVE ${CMAKE_SOURCE_DIR}
+  FOLLOW_SYMLINKS
+  include/${PROJECT_NAME}/*.h
+  include/${PROJECT_NAME}/*.hpp
+  include/${PROJECT_NAME}/ros/*.hpp
+  include/${PROJECT_NAME}/ui/*.hpp
+)
 file(GLOB PRO_RESOURCE_DIR RELATIVE ${CMAKE_SOURCE_DIR} FOLLOW_SYMLINKS  resource/*.qrc)
 qt5_wrap_ui(QT_UI_HPP ${PRO_UI_DIR})
 qt5_wrap_cpp(QT_MOC_HPP ${PRO_INCLUDE_DIR})

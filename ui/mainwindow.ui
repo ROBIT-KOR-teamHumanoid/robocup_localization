@@ -930,52 +930,6 @@ color: rgb(46, 52, 54);</string>
      <string>info</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="btn_set_7">
-    <property name="geometry">
-     <rect>
-      <x>220</x>
-      <y>915</y>
-      <width>41</width>
-      <height>41</height>
-     </rect>
-    </property>
-    <property name="font">
-     <font>
-      <family>Ubuntu Mono</family>
-      <weight>75</weight>
-      <bold>true</bold>
-     </font>
-    </property>
-    <property name="styleSheet">
-     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png&quot;);</string>
-    </property>
-    <property name="text">
-     <string>TL</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="btn_set_8">
-    <property name="geometry">
-     <rect>
-      <x>220</x>
-      <y>960</y>
-      <width>41</width>
-      <height>41</height>
-     </rect>
-    </property>
-    <property name="font">
-     <font>
-      <family>Ubuntu Mono</family>
-      <weight>75</weight>
-      <bold>true</bold>
-     </font>
-    </property>
-    <property name="styleSheet">
-     <string notr="true">border-image:url(&quot;/home/syu/catkin_ws/src/robocup_localization23/resources/UI/btn_empty.png&quot;);</string>
-    </property>
-    <property name="text">
-     <string>TR</string>
-    </property>
-   </widget>
    <widget class="QPushButton" name="obstacle_trigger">
     <property name="geometry">
      <rect>
@@ -1039,8 +993,6 @@ color: rgb(46, 52, 54);</string>
    <zorder>label_12</zorder>
    <zorder>btn_objects_save</zorder>
    <zorder>btn_info</zorder>
-   <zorder>btn_set_7</zorder>
-   <zorder>btn_set_8</zorder>
    <zorder>obstacle_trigger</zorder>
   </widget>
   <action name="action_Quit">

@@ -2,8 +2,8 @@
 ** ROBOT class implementations
 *****************************************************************************/
 
-#include "../../include/robot_odom_model/robot_odom_model.hpp"
-#include "../../include/field_coordinate/field_coordinate.hpp"
+#include "robocup_localization/core/mcl/robot_odom_model.hpp"
+#include "field_coordinate/field_coordinate.hpp"
 
 ROBOT::ROBOT() {}
 

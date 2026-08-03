@@ -63,7 +63,6 @@ into the global field coordinate frame.
 | Topic                  | Description                                              |
 | ---------------------- | -------------------------------------------------------- |
 | `/localization`        | Estimated robot pose and transformed world-frame objects |
-| `/technical_challenge` | Coordinate sharing for Technical Challenge mode          |
 
 ---
 

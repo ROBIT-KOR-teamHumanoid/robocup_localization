@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cmath>
-#include "../field_coordinate/field_coordinate.hpp"
+#include "field_coordinate/field_coordinate.hpp"
 
 struct VISION_POINT
 {

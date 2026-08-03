@@ -1,5 +1,0 @@
-int32 ball_in_approach
-
-float64 blind_robot_x
-float64 blind_robot_y
-int32 kick_flag

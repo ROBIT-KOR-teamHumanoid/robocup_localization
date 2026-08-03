@@ -20,9 +20,8 @@
 
     setup_mode:
       Soccer_mode : true
-      
-      Technical_Challenge_mode : 
-        Corner_kick_receiver: false
-        Local_helper: false
-        Local_kicker: false
-        High_kicker: false
+
+    rate:
+      ros_spin_hz: 20.0
+      ui_data_hz: 20.0
+      ui_render_hz: 20.0

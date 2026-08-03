@@ -24,7 +24,8 @@
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <vector>
 #include "QIcon"
-#include "qnode.hpp"
+#include "robocup_localization/app/localization_command.hpp"
+#include "robocup_localization/app/localization_snapshot.hpp"
 #include "ui_mainwindow.h"
 
 class Popup : public QDialog
@@ -93,9 +94,12 @@ class MainWindow : public QMainWindow
   Q_OBJECT
 
 public:
-  MainWindow(int argc, char **argv, QWidget *parent = nullptr);
+  explicit MainWindow(
+      robocup_localization::app::LocalizationSnapshotSource& snapshots,
+      robocup_localization::app::LocalizationCommand& commands,
+      QWidget* parent = nullptr);
+
   ~MainWindow();
-  QNode *qnode;
 
   // For timer
   QTimer *m_Timer;
@@ -107,23 +111,27 @@ public:
   QGraphicsScene *scene;
 
   int cvt_Print_xy(float target);
-  QPolygonF create_Print_robot(ROBOT robot);
+  QPolygonF create_Print_robot(float x, float y, float yaw_deg);
   void Print_Screen_Ball();
 
   // For UI
   int set_robot_flag = 0;
   int setting_flag = 0;
   bool obstacle_mode = false;
+  bool set_obstacle_flag_ = false;
+  bool manual_ball_editing_ = false;
+  bool manual_ball_placed_ = false;
   float adult_ui_size_cali = 0.0; // 어덜트 맵 크기에 따른 ui 사이즈 보정값
   float particle_range = 0.0;     // is 100
 
   void setting();
 
-  // For udp
-  void select_ball();
-
 private:
-  Ui::MainWindowDesign *ui;
+  robocup_localization::app::LocalizationSnapshotSource* snapshots_;
+  robocup_localization::app::LocalizationCommand* commands_;
+  robocup_localization::app::LocalizationSnapshot localization_snapshot_;
+  Ui::MainWindowDesign* ui;
+
   void closeEvent(QCloseEvent *event);
 
 public slots:
@@ -140,14 +148,11 @@ public slots:
   void on_btn_set_4_clicked();
   void on_btn_set_5_clicked();
   void on_btn_set_6_clicked();
-  void on_btn_set_7_clicked();
-  void on_btn_set_8_clicked();
   void on_btn_set_auto_clicked();
   void on_btn_ball_set_clicked();
   void on_btn_ball_del_clicked();
   void on_obstacle_trigger_clicked();
   void on_btn_info_clicked();
-  void featureCalc();
 };
 
 #endif // robocup_localization25_MAIN_WINDOW_H

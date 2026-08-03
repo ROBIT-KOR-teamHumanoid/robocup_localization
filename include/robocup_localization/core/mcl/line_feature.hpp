@@ -9,12 +9,12 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
 #include <opencv2/highgui.hpp>
-#include <mutex>
+#include <vector>
 
-#include "../field_coordinate/field_coordinate.hpp"
-#include "../robot_odom_model/robot_odom_model.hpp"
-#include "../objects/vision_point.hpp"
-#include "../robocup_localization/filter.hpp"
+#include "field_coordinate/field_coordinate.hpp"
+#include "robocup_localization/core/types/vision_point.hpp"
+#include "robocup_localization/core/types/particle.hpp"
+#include "robocup_localization/core/mcl/observation_filter.hpp"
 
 #ifndef DEG2RAD
 #define DEG2RAD (M_PI / 180)
@@ -31,19 +31,46 @@ struct MEASUREMENT
 
 bool sort_return(MEASUREMENT x, MEASUREMENT y);
 
-class QNode;
+struct FeatureCalcInput
+{
+    float robot_x = 0.0f;
+    float robot_y = 0.0f;
+    float robot_yaw_deg = 0.0f;
+    double particle_range = 0.0;
+    double weight_update_threshold = 0.0;
+    bool noise_enabled = true;
+};
+
+struct FeatureCalcResult
+{
+    bool pose_updated = false;
+    float robot_x = 0.0f;
+    float robot_y = 0.0f;
+};
 
 class Line_Feature
 {
 public:
-    void featureCalc(QNode *qnode, double particle_range);
+    FeatureCalcResult featureCalc(
+        std::vector<Particle>& particles,
+        const FeatureCalcInput& input);
     double weight_calculate(int PT_X, int PT_Y, float PT_Z, int NOW_X, int NOW_Y, vector<VISION_POINT> &vect);
 
     static double gaussianRandom(double average, double stdev);
-    static void random_point(ROBOT &robot, int x, int y, float particle_range, float theta);
+    static void random_point(
+        Particle& particle,
+        int x,
+        int y,
+        float particle_range,
+        float theta);
 
     VISION_POINT vision_point;
     vector<VISION_POINT> vision_point_vect;
+    int vision_data_count = 0;
+    int vision_data_size = 0;
+    bool valid_observation = false;
+    double ball_relative_x_mm = 0.0;
+    double ball_relative_y_mm = 0.0;
 
     Filter filter;
 
@@ -96,7 +123,7 @@ private:
     double sum_w, wx, wy;
     vector<double> cdf;
     double fc_step, fc_r;
-    vector<float> new_x, new_y;
+    vector<float> new_x, new_y, new_z;
     int fc_j;
     int synthetic_cnt;
     double resample_noise;

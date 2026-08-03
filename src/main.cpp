@@ -1,12 +1,17 @@
 #include <QApplication>
-#include <iostream>
 
-#include "../include/robocup_localization/main_window.hpp"
+#include "robocup_localization/ros/qnode.hpp"
+#include "robocup_localization/ui/main_window.hpp"
 
 int main(int argc, char *argv[])
 {
-  QApplication a(argc, argv);
-  MainWindow w(argc, argv);
-  w.show();
-  return a.exec();
+  QApplication app(argc, argv);
+
+  QNode qnode(argc, argv);
+  MainWindow window(qnode, qnode);
+  QObject::connect(
+      &qnode, SIGNAL(rosShutDown()), &window, SLOT(close()));
+
+  window.show();
+  return app.exec();
 }
