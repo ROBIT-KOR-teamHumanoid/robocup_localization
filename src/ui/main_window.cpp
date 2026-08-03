@@ -25,6 +25,70 @@
 #include "robot_config.h"
 #include "field_coordinate/field_coordinate.hpp"
 
+namespace
+{
+
+constexpr qreal kUiScale = 0.8;
+
+int scaled(int value)
+{
+  return qRound(value * kUiScale);
+}
+
+void scaleMainWindowUi(QMainWindow& window, QWidget& central_widget)
+{
+  const auto widgets = central_widget.findChildren<QWidget*>(
+      QString(), Qt::FindDirectChildrenOnly);
+
+  for (QWidget* widget : widgets)
+  {
+    const QRect geometry = widget->geometry();
+    widget->setGeometry(
+        scaled(geometry.x()), scaled(geometry.y()),
+        scaled(geometry.width()), scaled(geometry.height()));
+
+    QFont font = widget->font();
+    if (font.pointSizeF() > 0.0)
+    {
+      font.setPointSizeF(std::max(1.0, font.pointSizeF() * kUiScale));
+      widget->setFont(font);
+    }
+  }
+
+  window.setFixedSize(scaled(window.width()), scaled(window.height()));
+}
+
+void fitFieldScene(QGraphicsView& view, QGraphicsScene& scene)
+{
+  const QRectF map_rect(
+      0.0, 0.0, FieldCoord::MAP_W, FieldCoord::MAP_H);
+  scene.setSceneRect(map_rect);
+  view.fitInView(map_rect, Qt::KeepAspectRatio);
+}
+
+bool mapToFieldScene(
+    QGraphicsView& view,
+    const QWidget& source,
+    const QPoint& source_position,
+    QPointF& scene_position)
+{
+  const QPoint viewport_position =
+      view.viewport()->mapFrom(&source, source_position);
+  if (!view.viewport()->rect().contains(viewport_position))
+  {
+    return false;
+  }
+
+  scene_position = view.mapToScene(viewport_position);
+  scene_position.setX(std::clamp(
+      scene_position.x(), 0.0, static_cast<double>(FieldCoord::MAP_W)));
+  scene_position.setY(std::clamp(
+      scene_position.y(), 0.0, static_cast<double>(FieldCoord::MAP_H)));
+  return true;
+}
+
+}  // namespace
+
 MainWindow::MainWindow(
     robocup_localization::app::LocalizationSnapshotSource& snapshots,
     robocup_localization::app::LocalizationCommand& commands,
@@ -36,6 +100,7 @@ MainWindow::MainWindow(
       ui(new Ui::MainWindowDesign)
 {
   ui->setupUi(this);
+  scaleMainWindowUi(*this, *ui->centralwidget);
 
   QIcon icon("://ros-icon.png");
   this->setWindowIcon(icon);
@@ -333,6 +398,7 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
   scene = new QGraphicsScene(this);
   ui->screen->setScene(scene);
   scene->addPixmap(buf);
+  fitFieldScene(*ui->screen, *scene);
 
   QBrush blueBrush(Qt::blue);
   QBrush redBrush(Qt::red);
@@ -639,7 +705,11 @@ void MainWindow::mouseReleaseEvent(QMouseEvent *e)
   // 해당 object를 마우스 위치로 이동 & 이동한 위치에 파티클 생성
 
   // MainWindow 기준 마우스 위치 → ui->screen(QGraphicsView) 기준 → 씬 좌표
-  QPointF scenePos = ui->screen->mapToScene(ui->screen->mapFrom(this, e->pos()));
+  QPointF scenePos;
+  if (!mapToFieldScene(*ui->screen, *this, e->pos(), scenePos))
+  {
+    return;
+  }
   if (set_robot_flag)
   {
     commands_->placeRobot(scenePos.x(), scenePos.y(), particle_range);
@@ -665,7 +735,11 @@ void MainWindow::mouseMoveEvent(QMouseEvent *e)
   // POST CONDITION : qnode->robot0.n, qnode->ball.n master_target_n,
   // purpose : set_object_flag가 활성화 되있고, 마우스 이동 이벤트가 적용 시
   // 해당 object를 마우스 위치로 이동 & 이동한 위치에 파티클 생성
-  QPointF scenePos = ui->screen->mapToScene(ui->screen->mapFrom(this, e->pos()));
+  QPointF scenePos;
+  if (!mapToFieldScene(*ui->screen, *this, e->pos(), scenePos))
+  {
+    return;
+  }
   if (set_robot_flag)
   {
     commands_->previewRobotPosition(scenePos.x(), scenePos.y());
