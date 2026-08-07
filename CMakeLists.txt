@@ -41,6 +41,11 @@ find_package(
 install(DIRECTORY resources
   DESTINATION share/${PROJECT_NAME}
 )
+# ONNX 모델은 배포되는 런타임 자산이라 패키지 데이터로 함께 설치한다.
+# config 의 learned.mlp_model 은 이 share 디렉터리 기준 상대경로다.
+install(DIRECTORY models
+  DESTINATION share/${PROJECT_NAME}
+)
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
 )

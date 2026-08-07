@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include <vector>
 
 #include "objects_model/ball.hpp"
@@ -17,8 +18,8 @@
 // 예전엔 이 계산이 MainWindow::select_ball() 에 있었다. GUI 요소가 하나도
 // 없는 순수 도메인 로직이라 여기로 옮겼다.
 //
-// 락 없음 — 현재는 GUI 타이머 스레드에서만 update() 가 불린다. 발행을 ROS
-// 타이머로 옮기려면 그때 락이 필요하다.
+// update() 는 ROS 타이머 스레드가, 화면 표시는 Qt 스레드가 읽는다.
+// MclNode 와 같은 방식으로 snapshot() 이 한 번에 복사해 일관된 시점을 준다.
 class BallTracker
 {
 public:
@@ -49,6 +50,30 @@ public:
   void update(const VisionInput &vision, const Pose &robot_pose,
               Teammate &robot1, Teammate &robot2, Teammate &robot3,
               Teammate &robot4);
+
+  // 화면 표시용 사본. 여러 값을 따로 읽으면 그 사이 갱신되어 공 위치와
+  // 장애물이 서로 다른 시점의 조합이 될 수 있다.
+  struct Snapshot
+  {
+    BALL ball;
+    std::vector<OBSTACLE> obstacles;
+    std::vector<OBSTACLE> debug_obstacles;
+  };
+  Snapshot snapshot();
+
+  // GUI 조작 (공 수동 지정/삭제, 디버그 장애물). 락을 잡고 처리한다.
+  void setBall(float x_px, float y_px);
+
+  /// GUI 수동 배치 상태를 반영한다. manual_active 면 set_x/set_y 로 고정하고,
+  /// 아니면서 비전이 오래 끊겼으면 공을 지운다. 매 프레임 호출.
+  void applyManualPlacement(bool manual_active, bool vision_stale);
+  void clearBall();
+  void addDebugObstacle(float x_px, float y_px);
+  void clearDebugObstacles();
+  void popDebugObstacle();       // 마지막 하나 제거
+  void clearTeammateBalls();     // 팀 로봇이 보고한 공 전부 초기화
+
+  std::mutex mutex_;  // 아래 상태 전체를 보호
 
   // ── 추적 결과 (소유) ──────────────────────────────────────────
   BALL ball;                             // 최종 선택된 공

@@ -44,7 +44,26 @@ MclNode::Snapshot MclNode::snapshot()
     std::lock_guard<std::mutex> robot0_lock(robot0_mutex);
     s.robot = robot0;
   }
+  {
+    // 관측 목록과 랜드마크는 featureCalc 이 vision_mutex 아래에서 갱신한다.
+    std::lock_guard<std::mutex> vision_lock(vision_mutex);
+    s.observations = Likelihood.vision_point_vect;
+    for (int i = 0; i < FieldCoord::FEATURE_POINT_COUNT; i++)
+    {
+      s.landmark_x[i] = Likelihood.filter.Local_point_x[i];
+      s.landmark_y[i] = Likelihood.filter.Local_point_y[i];
+      s.landmark_on[i] = Likelihood.filter.Local_point_on_off[i];
+    }
+    s.circle_center = Likelihood.filter.CIRCLE_CENTER;
+    s.circle_r = Likelihood.filter.CIRCLE_R;
+  }
   return s;
+}
+
+Pose2D MclNode::pose()
+{
+  std::lock_guard<std::mutex> robot0_lock(robot0_mutex);
+  return static_cast<Pose2D>(robot0);
 }
 
 void MclNode::placeRobot(float x_px, float y_px, float scatter_range_px)
@@ -67,6 +86,12 @@ void MclNode::moveRobot(float x_px, float y_px)
   robot0.x = x_px;
   robot0.y = y_px;
   robot0.trail.clear();
+}
+
+void MclNode::clearObservations()
+{
+  std::lock_guard<std::mutex> vision_lock(vision_mutex);
+  Likelihood.vision_point_vect.clear();
 }
 
 void MclNode::notifyObservation()

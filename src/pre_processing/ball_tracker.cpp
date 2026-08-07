@@ -32,10 +32,90 @@ void clampY(T &v)
 }
 }  // namespace
 
+BallTracker::Snapshot BallTracker::snapshot()
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  Snapshot s;
+  s.ball = ball;
+  s.obstacles = obstacles;
+  s.debug_obstacles = debug_obstacles;
+  return s;
+}
+
+void BallTracker::setBall(float x_px, float y_px)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  ball.x = x_px;
+  ball.y = y_px;
+  // set_* 는 수동 배치가 유지되는 동안 매 틱 다시 적용되는 기준값이다.
+  ball.set_x = ball.x;
+  ball.set_y = ball.y;
+  ball.noballcnt = 0;
+}
+
+void BallTracker::applyManualPlacement(bool manual_active, bool vision_stale)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (manual_active)
+  {
+    ball.x = ball.set_x;
+    ball.y = ball.set_y;
+    ball.noballcnt = 0;
+  }
+  else if (vision_stale)
+  {
+    ball.x = 0;
+    ball.y = 0;
+  }
+}
+
+void BallTracker::clearBall()
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  ball.x = 0;
+  ball.y = 0;
+}
+
+void BallTracker::addDebugObstacle(float x_px, float y_px)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  OBSTACLE o;
+  o.x = x_px;
+  o.y = y_px;
+  o.nocnt = 0;
+  debug_obstacles.push_back(o);
+}
+
+void BallTracker::clearDebugObstacles()
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  debug_obstacles.clear();
+}
+
+void BallTracker::popDebugObstacle()
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!debug_obstacles.empty())
+    debug_obstacles.pop_back();
+}
+
+void BallTracker::clearTeammateBalls()
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  for (BALL *b : {&ball1, &ball2, &ball3, &ball4})
+  {
+    b->x = 0;
+    b->y = 0;
+    b->d = 999999;
+  }
+}
+
 void BallTracker::update(const VisionInput &vision, const Pose &robot_pose,
                          Teammate &robot1, Teammate &robot2,
                          Teammate &robot3, Teammate &robot4)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
+
   // ── 1. 팀 데이터 신선도 decay, 만료 시 비활성화 ────────────────
   team_udp_receiver::tick(robot1, ball1);
   team_udp_receiver::tick(robot2, ball2);

@@ -100,7 +100,6 @@ public:
   void setting();
 
   // For udp
-  void select_ball(const MclNode::Snapshot &snap);
 
 private:
   Ui::MainWindowDesign *ui;

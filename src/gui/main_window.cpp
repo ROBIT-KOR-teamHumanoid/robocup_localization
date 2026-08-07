@@ -34,7 +34,7 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
   QIcon icon("://ros-icon.png");
   this->setWindowIcon(icon);
 
-  qnode = new QNode(argc, argv);
+  qnode = new QNode();
 
   // 데이터 업데이트 타이머
   m_DataTimer = new QTimer(this);
@@ -160,11 +160,9 @@ MainWindow::MainWindow(int argc, char **argv, QWidget *parent)
 
 void MainWindow::main()
 {
-  // INIT
-  setting();     // 공 선택 & 파라미터 불러오기 & UI에서 오도메트리 값 설정
-  select_ball(qnode->mcl_.snapshot()); // UDP 공 데이터로 공 위치 설정 & obstacle 위치 계산
-
-  qnode->publish_localization();
+  // 추적 갱신과 발행은 QNode 의 ROS 타이머가 한다 (GUI 가 멈춰도 계속되도록).
+  // 여기서는 슬라이더 값을 반영하는 일만 남는다.
+  setting();
 }
 
 void MainWindow::Print_Screen_Ball()
@@ -176,52 +174,40 @@ void MainWindow::Print_Screen_Ball()
   QBrush yellowBrush(Qt::yellow);
   QBrush blueBrush(Qt::blue);
   QBrush pinkBrush(QColor(255, 105, 180));
-  bool ball_in_range = (qnode->ball.x >= FieldCoord::BALL_TRUST_X_MIN &&
-                        qnode->ball.x <= FieldCoord::BALL_TRUST_X_MAX &&
-                        qnode->ball.y >= FieldCoord::BALL_TRUST_Y_MIN &&
-                        qnode->ball.y <= FieldCoord::BALL_TRUST_Y_MAX);
+
+  // 그리기 전 한 번 복사 — ROS 타이머가 갱신 중일 수 있다.
+  const BallTracker::Snapshot ts = qnode->tracker_.snapshot();
+
+  bool ball_in_range = (ts.ball.x >= FieldCoord::BALL_TRUST_X_MIN &&
+                        ts.ball.x <= FieldCoord::BALL_TRUST_X_MAX &&
+                        ts.ball.y >= FieldCoord::BALL_TRUST_Y_MIN &&
+                        ts.ball.y <= FieldCoord::BALL_TRUST_Y_MAX);
   if (ball_in_range && (qnode->visionMSG.Ball_2d_X != 0 || qnode->visionMSG.Ball_2d_Y != 0)
-      && qnode->ball.noballcnt == 0)
+      && ts.ball.noballcnt == 0)
   {
-    scene->addEllipse(cvt_Print_xy(qnode->ball.x) - 5,
-                      cvt_Print_xy(qnode->ball.y) - 5, 11, 11, blackPen, redBrush);
-    scene->addLine(cvt_Print_xy(qnode->ball.x), cvt_Print_xy(qnode->ball.y),
-                   cvt_Print_xy(qnode->ball.x + qnode->ball.speed_x * qnode->visionMSG.Ball_speed_level),
-                   cvt_Print_xy(qnode->ball.y + qnode->ball.speed_y * qnode->visionMSG.Ball_speed_level),
+    scene->addEllipse(cvt_Print_xy(ts.ball.x) - 5,
+                      cvt_Print_xy(ts.ball.y) - 5, 11, 11, blackPen, redBrush);
+    scene->addLine(cvt_Print_xy(ts.ball.x), cvt_Print_xy(ts.ball.y),
+                   cvt_Print_xy(ts.ball.x + ts.ball.speed_x * qnode->visionMSG.Ball_speed_level),
+                   cvt_Print_xy(ts.ball.y + ts.ball.speed_y * qnode->visionMSG.Ball_speed_level),
                    blackPen);
   }
-  else if (ball_in_range && (qnode->ball.x != 0 || qnode->ball.y != 0))
+  else if (ball_in_range && (ts.ball.x != 0 || ts.ball.y != 0))
   {
-    if (qnode->ball.from_udp)
-      scene->addEllipse(cvt_Print_xy(qnode->ball.x) - 5,
-                        cvt_Print_xy(qnode->ball.y) - 5, 11, 11, blackPen, pinkBrush);
+    if (ts.ball.from_udp)
+      scene->addEllipse(cvt_Print_xy(ts.ball.x) - 5,
+                        cvt_Print_xy(ts.ball.y) - 5, 11, 11, blackPen, pinkBrush);
     else
-      scene->addEllipse(cvt_Print_xy(qnode->ball.x) - 5,
-                        cvt_Print_xy(qnode->ball.y) - 5, 11, 11, blackPen, yellowBrush);
+      scene->addEllipse(cvt_Print_xy(ts.ball.x) - 5,
+                        cvt_Print_xy(ts.ball.y) - 5, 11, 11, blackPen, yellowBrush);
   }
   if (qnode->set_ball_flag)
   {
-    scene->addEllipse(cvt_Print_xy(qnode->ball.x) - 5,
-                      cvt_Print_xy(qnode->ball.y) - 5, 11, 11, blackPen, blueBrush);
+    scene->addEllipse(cvt_Print_xy(ts.ball.x) - 5,
+                      cvt_Print_xy(ts.ball.y) - 5, 11, 11, blackPen, blueBrush);
   }
 }
 
-void MainWindow::select_ball(const MclNode::Snapshot &snap)
-{
-  // 공·장애물 융합은 BallTracker 가 한다. 여기서는 비전 입력만 추려 넘긴다.
-  BallTracker::VisionInput vin;
-  vin.ball_2d_x_mm = qnode->visionMSG.Ball_2d_X;
-  vin.ball_2d_y_mm = qnode->visionMSG.Ball_2d_Y;
-  vin.ball_d_mm = qnode->visionMSG.Ball_D;
-  vin.ball_speed_x = qnode->visionMSG.Ball_speed_X;
-  vin.ball_speed_y = qnode->visionMSG.Ball_speed_Y;
-  vin.robot_vec_x = qnode->visionMSG.ROBOT_VEC_X;
-  vin.robot_vec_y = qnode->visionMSG.ROBOT_VEC_Y;
-
-  qnode->tracker_.update(
-      vin, {snap.robot.x, snap.robot.y, snap.robot.yaw_deg},
-      qnode->robot1, qnode->robot2, qnode->robot3, qnode->robot4);
-}
 
 void MainWindow::setting()
 {
@@ -230,21 +216,6 @@ void MainWindow::setting()
   // qnode->robot0.odom_Nn purpose : 로봇의 초기 세팅 및 입출력스트림을 통해
   // 저장되어있던 오도메트리 값 설정, 볼의 위치를 재설정 하는 경우 볼 위치 변경,
   // ui슬라이더를 통해 오도메트리 값 적용
-
-  qnode->vision_callback_timer += 1; // vision timer count +1
-  if (qnode->set_ball_flag)          // qnode->set_ball_flag가 1일때 공 위치 변경
-  {
-    qnode->ball.x = qnode->ball.set_x;
-    qnode->ball.y = qnode->ball.set_y;
-    qnode->ball.noballcnt = 0;
-  }
-  if (qnode->vision_callback_timer > 10 &&
-      qnode->set_ball_flag == 0) // qnode->set_ball_flag가 비활성화 상태이고
-                                 // timer가 10 이상이면 공 위치 비활성화
-  {
-    qnode->ball.x = 0;
-    qnode->ball.y = 0;
-  }
 
   if (setting_flag == 0) // 최초 1회: 저장된 캘리브레이션을 불러와 슬라이더에 반영
   {
@@ -277,8 +248,11 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
 {
   // 그리기 전 추정 상태를 한 번에 복사한다 (일관된 시점 + 락 보유 최소화).
   const MclNode::Snapshot snap = qnode->mcl_.snapshot();
+  const BallTracker::Snapshot ts = qnode->tracker_.snapshot();
+  const QNode::TeamSnapshot team = qnode->teammates();
+  const MasterMsg master = qnode->masterState();
 
-  // PRE CONDITION : robotX.n, obstacleX.n, qnode->ball.n, qnode->Likelihood
+  // PRE CONDITION : robotX.n, obstacleX.n, ts.ball.n, qnode->Likelihood
   // POST CONDITION : UI
   // purpose : UI출력
 
@@ -289,9 +263,9 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
   }
 
   char TEXT[256];
-  sprintf(TEXT, "BALL_X : %d", (int)qnode->ball.x);
+  sprintf(TEXT, "BALL_X : %d", (int)ts.ball.x);
   ui->BALL_X_value->setText(TEXT);
-  sprintf(TEXT, "BALL_Y : %d", (int)qnode->ball.y);
+  sprintf(TEXT, "BALL_Y : %d", (int)ts.ball.y);
   ui->BALL_Y_value->setText(TEXT);
   sprintf(TEXT, "ROBOT_X : %d", (int)snap.robot.x);
   ui->ROBOT_X_value->setText(TEXT);
@@ -344,7 +318,7 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
   targetlinePen.setWidth(2);
 
   // print obstacle
-  for (const auto &obs : qnode->obstacles)
+  for (const auto &obs : ts.obstacles)
   {
     if (obs.x != 0 && obs.y != 0)
     {
@@ -355,7 +329,7 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
   }
 
   // print debug obstacles
-  for (const auto &obs : qnode->debug_obstacles)
+  for (const auto &obs : ts.debug_obstacles)
   {
     scene->addRect(cvt_Print_xy(obs.x) - 6,
                    cvt_Print_xy(obs.y) - 6, 12, 12, redPen,
@@ -436,17 +410,17 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
 
   // PRINT SIGHT
   // if(qnode->visionMSG.Scan_mode != 3){qnode->robot_sight_flag = 0;
-  // qnode->Likelihood.vision_point_vect.clear();}
+  // snap.observations.clear();}
 
   // 비전에서 측정된 특징점 표시
   for (int i = 0; i < FieldCoord::FEATURE_POINT_COUNT; i++)
   {
     if (!FieldCoord::ALL_POINTS[i].active)
       continue;
-    if (qnode->Likelihood.filter.Local_point_on_off[i] == 1)
+    if (snap.landmark_on[i] == 1)
     {
-      scene->addEllipse(cvt_Print_xy(qnode->Likelihood.filter.Local_point_x[i]) - 4,
-                        cvt_Print_xy(qnode->Likelihood.filter.Local_point_y[i]) - 4, 8,
+      scene->addEllipse(cvt_Print_xy(snap.landmark_x[i]) - 4,
+                        cvt_Print_xy(snap.landmark_y[i]) - 4, 8,
                         8, blackPen1);
     }
   }
@@ -458,9 +432,9 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
     nearbyPen.setWidth(3);
     QBrush nearbyBrush(Qt::cyan);
 
-    for (int i = 0; i < (int)qnode->Likelihood.vision_point_vect.size(); i++)
+    for (int i = 0; i < (int)snap.observations.size(); i++)
     {
-      auto &vp = qnode->Likelihood.vision_point_vect[i];
+      auto &vp = snap.observations[i];
 
       // 로봇에서 특징점까지의 거리 (픽셀)
       double dist_from_robot = sqrt(pow(vp.POINT_VEC_X, 2) + pow(vp.POINT_VEC_Y, 2));
@@ -478,8 +452,8 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
       {
         if ((int)FieldCoord::ALL_POINTS[j].type != vp.FEATURE_TYPE)
           continue;
-        double dis = sqrt(pow(qnode->Likelihood.filter.Local_point_x[j] - obs_px, 2) +
-                          pow(qnode->Likelihood.filter.Local_point_y[j] - obs_py, 2));
+        double dis = sqrt(pow(snap.landmark_x[j] - obs_px, 2) +
+                          pow(snap.landmark_y[j] - obs_py, 2));
         if (dis < min_dis)
         {
           min_dis = dis;
@@ -488,59 +462,59 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
       }
       if (nearest_j >= 0)
       {
-        scene->addEllipse(cvt_Print_xy(qnode->Likelihood.filter.Local_point_x[nearest_j]) - 6,
-                          cvt_Print_xy(qnode->Likelihood.filter.Local_point_y[nearest_j]) - 6,
+        scene->addEllipse(cvt_Print_xy(snap.landmark_x[nearest_j]) - 6,
+                          cvt_Print_xy(snap.landmark_y[nearest_j]) - 6,
                           12, 12, nearbyPen, nearbyBrush);
       }
     }
   }
 
-  for (int i = 0; i < qnode->Likelihood.vision_point_vect.size(); i++)
+  for (int i = 0; i < snap.observations.size(); i++)
   {
-    auto px = cvt_Print_xy(qnode->Likelihood.vision_point_vect[i].STD_X +
-                           qnode->Likelihood.vision_point_vect[i].POINT_VEC_X);
-    auto py = cvt_Print_xy(qnode->Likelihood.vision_point_vect[i].STD_Y +
-                           qnode->Likelihood.vision_point_vect[i].POINT_VEC_Y);
-    if (qnode->Likelihood.vision_point_vect[i].CONFIDENCE > 0.9)
+    auto px = cvt_Print_xy(snap.observations[i].STD_X +
+                           snap.observations[i].POINT_VEC_X);
+    auto py = cvt_Print_xy(snap.observations[i].STD_Y +
+                           snap.observations[i].POINT_VEC_Y);
+    if (snap.observations[i].CONFIDENCE > 0.9)
     {
       scene->addEllipse(px - 3, py - 3, 6, 6, LocalPen1);
     }
-    else if (qnode->Likelihood.vision_point_vect[i].CONFIDENCE > 0.7)
+    else if (snap.observations[i].CONFIDENCE > 0.7)
     {
       scene->addEllipse(px - 3, py - 3, 6, 6, LocalPen2);
     }
-    else if (qnode->Likelihood.vision_point_vect[i].CONFIDENCE > 0.5)
+    else if (snap.observations[i].CONFIDENCE > 0.5)
     {
       scene->addEllipse(px - 3, py - 3, 6, 6, LocalPen3);
     }
   }
-  if (qnode->Likelihood.vision_point_vect.size() != 0)
+  if (snap.observations.size() != 0)
   {
 
-    scene->addEllipse(cvt_Print_xy(qnode->Likelihood.filter.CIRCLE_CENTER.x -
-                                   qnode->Likelihood.filter.CIRCLE_R),
-                      cvt_Print_xy(qnode->Likelihood.filter.CIRCLE_CENTER.y -
-                                   qnode->Likelihood.filter.CIRCLE_R),
-                      cvt_Print_xy(qnode->Likelihood.filter.CIRCLE_R * 2),
-                      cvt_Print_xy(qnode->Likelihood.filter.CIRCLE_R * 2), blackPen);
+    scene->addEllipse(cvt_Print_xy(snap.circle_center.x -
+                                   snap.circle_r),
+                      cvt_Print_xy(snap.circle_center.y -
+                                   snap.circle_r),
+                      cvt_Print_xy(snap.circle_r * 2),
+                      cvt_Print_xy(snap.circle_r * 2), blackPen);
   }
 
   // PRINT BEST ATTACK POSITION
-  if (qnode->masterMSG.master_best_position_attack_x != 0.0f || qnode->masterMSG.master_best_position_attack_y != 0.0f)
+  if (master.master_best_position_attack_x != 0.0f || master.master_best_position_attack_y != 0.0f)
   {
-    int bpx = FieldCoord::toPixelX(qnode->masterMSG.master_best_position_attack_x);
-    int bpy = FieldCoord::toPixelY(qnode->masterMSG.master_best_position_attack_y);
+    int bpx = FieldCoord::toPixelX(master.master_best_position_attack_x);
+    int bpy = FieldCoord::toPixelY(master.master_best_position_attack_y);
     QPen bluePen(Qt::blue);
     bluePen.setWidth(2);
     QBrush blueFill(Qt::blue);
     scene->addEllipse(bpx - 8, bpy - 8, 16, 16, bluePen, blueFill);
   }
 
-  if (qnode->masterMSG.master_best_position_defend_x != 0.0f ||
-      qnode->masterMSG.master_best_position_defend_y != 0.0f)
+  if (master.master_best_position_defend_x != 0.0f ||
+      master.master_best_position_defend_y != 0.0f)
   {
-    int bpx = FieldCoord::toPixelX(qnode->masterMSG.master_best_position_defend_x);
-    int bpy = FieldCoord::toPixelY(qnode->masterMSG.master_best_position_defend_y);
+    int bpx = FieldCoord::toPixelX(master.master_best_position_defend_x);
+    int bpy = FieldCoord::toPixelY(master.master_best_position_defend_y);
     QPen purplePen(Qt::magenta);
     purplePen.setWidth(2);
 
@@ -550,25 +524,25 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
   }
 
   // PRINT MASTER TARGET
-  if (qnode->masterMSG.master_target_x != 0 || qnode->masterMSG.master_target_y != 0)
+  if (master.master_target_x != 0 || master.master_target_y != 0)
   {
-    scene->addLine(cvt_Print_xy(qnode->masterMSG.master_target_x) + 4,
-                   cvt_Print_xy(qnode->masterMSG.master_target_y),
-                   cvt_Print_xy(qnode->masterMSG.master_target_x) - 4,
-                   cvt_Print_xy(qnode->masterMSG.master_target_y), targetPen);
-    scene->addLine(cvt_Print_xy(qnode->masterMSG.master_target_x),
-                   cvt_Print_xy(qnode->masterMSG.master_target_y) + 4,
-                   cvt_Print_xy(qnode->masterMSG.master_target_x),
-                   cvt_Print_xy(qnode->masterMSG.master_target_y) - 4, targetPen);
-    scene->addLine(cvt_Print_xy(qnode->masterMSG.master_target_x) + 2,
-                   cvt_Print_xy(qnode->masterMSG.master_target_y) + 2,
+    scene->addLine(cvt_Print_xy(master.master_target_x) + 4,
+                   cvt_Print_xy(master.master_target_y),
+                   cvt_Print_xy(master.master_target_x) - 4,
+                   cvt_Print_xy(master.master_target_y), targetPen);
+    scene->addLine(cvt_Print_xy(master.master_target_x),
+                   cvt_Print_xy(master.master_target_y) + 4,
+                   cvt_Print_xy(master.master_target_x),
+                   cvt_Print_xy(master.master_target_y) - 4, targetPen);
+    scene->addLine(cvt_Print_xy(master.master_target_x) + 2,
+                   cvt_Print_xy(master.master_target_y) + 2,
                    cvt_Print_xy(snap.robot.x), cvt_Print_xy(snap.robot.y),
                    targetlinePen);
 
     // angle_to_target 방향과 골대 라인 교차점 표시 (GO_KICK 중에만)
-    if (!qnode->masterMSG.master_move2ball_phase.empty())
+    if (!master.master_move2ball_phase.empty())
     {
-      float att = qnode->masterMSG.master_angle_to_target;
+      float att = master.master_angle_to_target;
       double theta = (270.0 - att) * DEG2RAD;
       double dir_x = std::cos(theta);
       double dir_y = std::sin(theta);
@@ -577,10 +551,10 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
       {
         using namespace FieldCoord;
         int goal_line_x = (dir_x > 0.0) ? toPixelX(A / 2) : toPixelX(-A / 2);
-        double t = (goal_line_x - qnode->masterMSG.master_target_x) / dir_x;
+        double t = (goal_line_x - master.master_target_x) / dir_x;
         if (t > 0.0)
         {
-          double aim_y_raw = qnode->masterMSG.master_target_y + t * dir_y;
+          double aim_y_raw = master.master_target_y + t * dir_y;
           int goal_y_min = toPixelY(D / 2);
           int goal_y_max = toPixelY(-D / 2);
           int aim_y = static_cast<int>(std::max((double)goal_y_min, std::min((double)goal_y_max, aim_y_raw)));
@@ -595,9 +569,9 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
 
   // PRINT ROBOT
   QPolygonF robot0_poly = create_Print_robot(snap.robot);
-  if (qnode->robot1.state != 3 && qnode->robot2.state != 3 &&
-      qnode->robot3.state != 3 && qnode->robot4.state != 3 &&
-      (qnode->ball.x != 0 || qnode->ball.y != 0))
+  if (team.r[0].state != 3 && team.r[1].state != 3 &&
+      team.r[2].state != 3 && team.r[3].state != 3 &&
+      (ts.ball.x != 0 || ts.ball.y != 0))
   {
     scene->addPolygon(robot0_poly, redPen3, blueBrush);
   }
@@ -612,11 +586,11 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
       cvt_Print_xy(snap.robot.y) - cos(snap.robot.yaw_deg * DEG2RAD) * 10,
       blackPen3);
 
-  if (qnode->robot1.x != 0 || qnode->robot1.y != 0)
+  if (team.r[0].x != 0 || team.r[0].y != 0)
   {
-    QPolygonF robot1_poly = create_Print_robot(qnode->robot1);
+    QPolygonF robot1_poly = create_Print_robot(team.r[0]);
 
-    if (qnode->robot1.state == 3)
+    if (team.r[0].state == 3)
     {
       scene->addPolygon(robot1_poly, redPen3, redBrush);
     }
@@ -625,16 +599,16 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
       scene->addPolygon(robot1_poly, blackPen, redBrush);
     }
     scene->addLine(
-        cvt_Print_xy(qnode->robot1.x), cvt_Print_xy(qnode->robot1.y),
-        cvt_Print_xy(qnode->robot1.x) +
-            sin((-1) * qnode->robot1.yaw_deg * DEG2RAD) * 10,
-        cvt_Print_xy(qnode->robot1.y) - cos(qnode->robot1.yaw_deg * DEG2RAD) * 10,
+        cvt_Print_xy(team.r[0].x), cvt_Print_xy(team.r[0].y),
+        cvt_Print_xy(team.r[0].x) +
+            sin((-1) * team.r[0].yaw_deg * DEG2RAD) * 10,
+        cvt_Print_xy(team.r[0].y) - cos(team.r[0].yaw_deg * DEG2RAD) * 10,
         blackPen3);
   }
-  if (qnode->robot2.x != 0 || qnode->robot2.y != 0)
+  if (team.r[1].x != 0 || team.r[1].y != 0)
   {
-    QPolygonF robot2_poly = create_Print_robot(qnode->robot2);
-    if (qnode->robot2.state == 3)
+    QPolygonF robot2_poly = create_Print_robot(team.r[1]);
+    if (team.r[1].state == 3)
     {
       scene->addPolygon(robot2_poly, redPen3, greenBrush);
     }
@@ -643,16 +617,16 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
       scene->addPolygon(robot2_poly, blackPen, greenBrush);
     }
     scene->addLine(
-        cvt_Print_xy(qnode->robot2.x), cvt_Print_xy(qnode->robot2.y),
-        cvt_Print_xy(qnode->robot2.x) +
-            sin((-1) * qnode->robot2.yaw_deg * DEG2RAD) * 10,
-        cvt_Print_xy(qnode->robot2.y) - cos(qnode->robot2.yaw_deg * DEG2RAD) * 10,
+        cvt_Print_xy(team.r[1].x), cvt_Print_xy(team.r[1].y),
+        cvt_Print_xy(team.r[1].x) +
+            sin((-1) * team.r[1].yaw_deg * DEG2RAD) * 10,
+        cvt_Print_xy(team.r[1].y) - cos(team.r[1].yaw_deg * DEG2RAD) * 10,
         blackPen3);
   }
-  if (qnode->robot3.x != 0 || qnode->robot3.y != 0)
+  if (team.r[2].x != 0 || team.r[2].y != 0)
   {
-    QPolygonF robot3_poly = create_Print_robot(qnode->robot3);
-    if (qnode->robot3.state == 3)
+    QPolygonF robot3_poly = create_Print_robot(team.r[2]);
+    if (team.r[2].state == 3)
     {
       scene->addPolygon(robot3_poly, redPen3, yellowBrush);
     }
@@ -661,16 +635,16 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
       scene->addPolygon(robot3_poly, blackPen, yellowBrush);
     }
     scene->addLine(
-        cvt_Print_xy(qnode->robot3.x), cvt_Print_xy(qnode->robot3.y),
-        cvt_Print_xy(qnode->robot3.x) +
-            sin((-1) * qnode->robot3.yaw_deg * DEG2RAD) * 10,
-        cvt_Print_xy(qnode->robot3.y) - cos(qnode->robot3.yaw_deg * DEG2RAD) * 10,
+        cvt_Print_xy(team.r[2].x), cvt_Print_xy(team.r[2].y),
+        cvt_Print_xy(team.r[2].x) +
+            sin((-1) * team.r[2].yaw_deg * DEG2RAD) * 10,
+        cvt_Print_xy(team.r[2].y) - cos(team.r[2].yaw_deg * DEG2RAD) * 10,
         blackPen3);
   }
-  if (qnode->robot4.x != 0 || qnode->robot4.y != 0)
+  if (team.r[3].x != 0 || team.r[3].y != 0)
   {
-    QPolygonF robot4_poly = create_Print_robot(qnode->robot4);
-    if (qnode->robot4.state == 3)
+    QPolygonF robot4_poly = create_Print_robot(team.r[3]);
+    if (team.r[3].state == 3)
     {
       scene->addPolygon(robot4_poly, redPen3, blackBrush);
     }
@@ -679,10 +653,10 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
       scene->addPolygon(robot4_poly, blackPen, blackBrush);
     }
     scene->addLine(
-        cvt_Print_xy(qnode->robot4.x), cvt_Print_xy(qnode->robot4.y),
-        cvt_Print_xy(qnode->robot4.x) +
-            sin((-1) * qnode->robot4.yaw_deg * DEG2RAD) * 10,
-        cvt_Print_xy(qnode->robot4.y) - cos(qnode->robot4.yaw_deg * DEG2RAD) * 10,
+        cvt_Print_xy(team.r[3].x), cvt_Print_xy(team.r[3].y),
+        cvt_Print_xy(team.r[3].x) +
+            sin((-1) * team.r[3].yaw_deg * DEG2RAD) * 10,
+        cvt_Print_xy(team.r[3].y) - cos(team.r[3].yaw_deg * DEG2RAD) * 10,
         blackPen3);
   }
 
@@ -702,22 +676,17 @@ void MainWindow::mouseReleaseEvent(QMouseEvent *e)
   {
     qnode->mcl_.placeRobot(scenePos.x(), scenePos.y(), particle_range);
     set_robot_flag = 0;
-    qnode->masterMSG.master_target_x = 0;
-    qnode->masterMSG.master_target_y = 0;
+    qnode->clearMasterTarget();
   }
 
   if (!obstacle_mode && qnode->set_ball_flag)
   {
-    qnode->ball.x = scenePos.x();
-    qnode->ball.y = scenePos.y();
-    qnode->ball.set_x = qnode->ball.x;
-    qnode->ball.set_y = qnode->ball.y;
-    qnode->ball.noballcnt = 0;
+    qnode->tracker_.setBall(scenePos.x(), scenePos.y());
   }
 
   if (qnode->set_obstacle_flag)
   {
-    qnode->debug_obstacles.push_back(OBSTACLE(scenePos.x(), scenePos.y()));
+    qnode->tracker_.addDebugObstacle(scenePos.x(), scenePos.y());
     qnode->set_obstacle_flag = 0;
   }
 }
@@ -732,16 +701,11 @@ void MainWindow::mouseMoveEvent(QMouseEvent *e)
   if (set_robot_flag)
   {
     qnode->mcl_.moveRobot(scenePos.x(), scenePos.y());
-    qnode->masterMSG.master_target_x = 0;
-    qnode->masterMSG.master_target_y = 0;
+    qnode->clearMasterTarget();
   }
   if (!obstacle_mode && qnode->set_ball_flag)
   {
-    qnode->ball.x = scenePos.x();
-    qnode->ball.y = scenePos.y();
-    qnode->ball.set_x = qnode->ball.x;
-    qnode->ball.set_y = qnode->ball.y;
-    qnode->ball.noballcnt = 0;
+    qnode->tracker_.setBall(scenePos.x(), scenePos.y());
   }
 }
 
@@ -820,8 +784,7 @@ void MainWindow::on_btn_objects_save_clicked()
 static void setRobotPos(QNode *qnode, float x, float y, float particle_range)
 {
   qnode->mcl_.placeRobot(x, y, particle_range);
-  qnode->masterMSG.master_target_x = 0;
-  qnode->masterMSG.master_target_y = 0;
+  qnode->clearMasterTarget();
 }
 
 void MainWindow::on_btn_set_1_clicked()
@@ -883,14 +846,12 @@ void MainWindow::on_btn_ball_del_clicked()
 {
   if (obstacle_mode)
   {
-    if (!qnode->debug_obstacles.empty())
-      qnode->debug_obstacles.pop_back();
+    qnode->tracker_.popDebugObstacle();
   }
   else
   {
     qnode->set_ball_flag = 0;
-    qnode->ball.x = 0;
-    qnode->ball.y = 0;
+    qnode->tracker_.clearBall();
   }
 }
 void MainWindow::on_obstacle_trigger_clicked()
@@ -903,39 +864,17 @@ void MainWindow::on_obstacle_trigger_clicked()
 }
 void MainWindow::on_btn_test_clicked()
 {
-  qnode->robot1.x = 0;
-  qnode->robot1.y = 0;
-  qnode->robot1.yaw_deg = 0;
 
-  qnode->ball1.x = 0;
-  qnode->ball1.y = 0;
-  qnode->ball1.d = 999999;
 
-  qnode->robot2.x = 0;
-  qnode->robot2.y = 0;
-  qnode->robot2.yaw_deg = 0;
 
-  qnode->ball2.x = 0;
-  qnode->ball2.y = 0;
-  qnode->ball2.d = 999999;
 
-  qnode->robot3.x = 0;
-  qnode->robot3.y = 0;
-  qnode->robot3.yaw_deg = 0;
 
-  qnode->ball3.x = 0;
-  qnode->ball3.y = 0;
-  qnode->ball3.d = 999999;
 
-  qnode->robot4.x = 0;
-  qnode->robot4.y = 0;
-  qnode->robot4.yaw_deg = 0;
 
-  qnode->ball4.x = 0;
-  qnode->ball4.y = 0;
-  qnode->ball4.d = 999999;
 
-  qnode->Likelihood.vision_point_vect.clear();
+  qnode->resetTeammates();
+  qnode->tracker_.clearTeammateBalls();
+  qnode->mcl_.clearObservations();
 }
 
 void MainWindow::on_btn_info_clicked()

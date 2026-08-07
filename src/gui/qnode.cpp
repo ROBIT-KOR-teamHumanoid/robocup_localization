@@ -19,13 +19,14 @@
 #include "monte_carlo_localization/particle_reset.hpp"
 #include "mlp_localization/mlp_dimension_adapter.hpp"
 
+#include <chrono>
+
 /*****************************************************************************
 ** QNode
 *****************************************************************************/
 
-QNode::QNode(int argc, char **argv)
+QNode::QNode()
 {
-  rclcpp::init(argc, argv);
   node = rclcpp::Node::make_shared("robocup_localization");
   this->start();
 
@@ -44,6 +45,11 @@ QNode::QNode(int argc, char **argv)
   
 
   loop_hz = 20;
+
+  // 추적 갱신 + 발행을 ROS 타이머로 돌린다. 예전엔 GUI 타이머(50ms)가
+  // 불렀는데, 그러면 창이 없거나 GUI 가 멈추면 발행도 멈춘다.
+  localization_timer_ = node->create_wall_timer(
+      std::chrono::milliseconds(50), std::bind(&QNode::localizationTick, this));
 
   // ===== Learned (ONNX) localization 초기화 =====
   if (learned_mlp_enable_ || learned_reloc_enable_)
@@ -311,7 +317,11 @@ void QNode::visionCallback(const vision_interfaces::msg::Robocupvision::SharedPt
 
 void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg)
 {
-  const bool foot_align = (masterMSG.master_move2ball_phase == "FOOT_ALIGN");
+  bool foot_align;
+  {
+    std::lock_guard<std::mutex> lock(master_mutex_);
+    foot_align = (masterMSG.master_move2ball_phase == "FOOT_ALIGN");
+  }
 
   MotionModel::Delta delta;
   {
@@ -343,8 +353,7 @@ void QNode::gameControlCallback(const gamecontroller::msg::Gamecontroldata::Shar
     const auto p = StartPositions::penaltyReturn(gameMSG.position, gameMSG.mySide);
     mcl_.placeRobot(p.x, p.y, particle_range);
 
-    masterMSG.master_target_x = 0;
-    masterMSG.master_target_y = 0;
+    clearMasterTarget();
   }
 }
 
@@ -353,6 +362,7 @@ void QNode::udpCallback(const humanoid_interfaces::msg::Udp2master::SharedPtr ms
   // PRE CONDITION : msg(udpcom)
   // POST CONDITION : robotX.n, ballX.n,
   // purpose : udp통신으로 받아온 다른 로봇 데이터를 team_udp_receiver로 위임하여 반영
+  std::lock_guard<std::mutex> lock(teammate_mutex_);
   switch (msg->robotnum)
   {
   case 1: team_udp_receiver::receive(msg, robot1, ball1); break;
@@ -369,6 +379,7 @@ void QNode::masterCallback(const humanoid_interfaces::msg::Master2localization::
   // POST CONDITION : master_target_N
   // purpose : 마스터에서 받은 타겟 좌표 데이터 적용
 
+  std::lock_guard<std::mutex> lock(master_mutex_);
   masterMSG.master_target_x = msg->targetx;
   masterMSG.master_target_y = msg->targety;
   masterMSG.master_best_position_attack_x = msg->bestposition_x;
@@ -419,16 +430,79 @@ void QNode::yaw_compensation()
   goal_post_pan_deg_buf_.clear();
 }
 
+MasterMsg QNode::masterState()
+{
+  std::lock_guard<std::mutex> lock(master_mutex_);
+  return masterMSG;
+}
+
+void QNode::clearMasterTarget()
+{
+  std::lock_guard<std::mutex> lock(master_mutex_);
+  masterMSG.master_target_x = 0;
+  masterMSG.master_target_y = 0;
+}
+
+QNode::TeamSnapshot QNode::teammates()
+{
+  std::lock_guard<std::mutex> lock(teammate_mutex_);
+  TeamSnapshot s;
+  s.r[0] = robot1;
+  s.r[1] = robot2;
+  s.r[2] = robot3;
+  s.r[3] = robot4;
+  return s;
+}
+
+void QNode::resetTeammates()
+{
+  std::lock_guard<std::mutex> lock(teammate_mutex_);
+  robot1 = Teammate{};
+  robot2 = Teammate{};
+  robot3 = Teammate{};
+  robot4 = Teammate{};
+}
+
+void QNode::localizationTick()
+{
+  // 1) GUI 수동 배치 반영 (비전이 10프레임 넘게 끊기면 공을 지운다)
+  vision_callback_timer += 1;
+  tracker_.applyManualPlacement(set_ball_flag != 0,
+                                vision_callback_timer > 10);
+
+  // 2) 공·장애물 추적 갱신
+  BallTracker::VisionInput vin;
+  vin.ball_2d_x_mm = visionMSG.Ball_2d_X;
+  vin.ball_2d_y_mm = visionMSG.Ball_2d_Y;
+  vin.ball_d_mm = visionMSG.Ball_D;
+  vin.ball_speed_x = visionMSG.Ball_speed_X;
+  vin.ball_speed_y = visionMSG.Ball_speed_Y;
+  vin.robot_vec_x = visionMSG.ROBOT_VEC_X;
+  vin.robot_vec_y = visionMSG.ROBOT_VEC_Y;
+
+  const Pose2D p = mcl_.pose();
+  {
+    // tick() 이 팀 pose(신선도)를 갱신하므로 같은 락 아래에서 돈다.
+    std::lock_guard<std::mutex> lock(teammate_mutex_);
+    tracker_.update(vin, {p.x, p.y, p.yaw_deg}, robot1, robot2, robot3, robot4);
+  }
+
+  // 3) 결과 발행
+  publish_localization();
+}
+
 void QNode::publish_localization()
 {
   robocup_localization::msg::RobocupLocalization msg;
 
-  msg.ball_x = ball.x;
-  msg.ball_y = ball.y;
+  const BallTracker::Snapshot ts = tracker_.snapshot();
+
+  msg.ball_x = ts.ball.x;
+  msg.ball_y = ts.ball.y;
   // 이름은 speed 지만 실제로는 speed_level 만큼 앞선 **예측 위치**다.
   // (main_window 가 이 점까지 선을 그린다) — 기존 동작 유지.
-  msg.ball_speed_x = ball.x + ball.speed_x * visionMSG.Ball_speed_level;
-  msg.ball_speed_y = ball.y + ball.speed_y * visionMSG.Ball_speed_level;
+  msg.ball_speed_x = ts.ball.x + ts.ball.speed_x * visionMSG.Ball_speed_level;
+  msg.ball_speed_y = ts.ball.y + ts.ball.speed_y * visionMSG.Ball_speed_level;
 
   {
     std::lock_guard<std::mutex> lock(robot0_mutex);
@@ -438,13 +512,13 @@ void QNode::publish_localization()
 
   // 감지 중인 장애물만 좌표를 싣고, 놓친 것은 (0,0) 으로 자리를 유지한다
   // — 수신 측이 인덱스로 장애물을 구분하기 때문이다.
-  for (const auto &obs : obstacles)
+  for (const auto &obs : ts.obstacles)
   {
     const bool tracked = (obs.nocnt == 0);
     msg.obstacles_x.push_back(tracked ? obs.x : 0.0f);
     msg.obstacles_y.push_back(tracked ? obs.y : 0.0f);
   }
-  for (const auto &obs : debug_obstacles)
+  for (const auto &obs : ts.debug_obstacles)
   {
     msg.obstacles_x.push_back(obs.x);
     msg.obstacles_y.push_back(obs.y);

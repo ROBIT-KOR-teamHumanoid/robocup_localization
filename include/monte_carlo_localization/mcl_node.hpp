@@ -53,8 +53,20 @@ public:
   {
     SelfRobot robot;
     std::vector<Particle> particles;
+
+    // 화면 표시용 관측·랜드마크. 워커가 featureCalc 중에 vision_point_vect 를
+    // clear/push_back 하므로, GUI 가 직접 순회하면 무효 반복자를 밟는다.
+    std::vector<VISION_POINT> observations;
+    double landmark_x[FieldCoord::FEATURE_POINT_COUNT];
+    double landmark_y[FieldCoord::FEATURE_POINT_COUNT];
+    int landmark_on[FieldCoord::FEATURE_POINT_COUNT];
+    cv::Point2d circle_center;
+    double circle_r = 0.0;
   };
   Snapshot snapshot();
+
+  /// pose 만 필요할 때. 파티클 8000개를 복사하지 않는다.
+  Pose2D pose();
 
   // ── 외부 확정 명령 ─────────────────────────────────────────────
   // 관측이 아니라 "여기 있다"가 밖에서 확실할 때 쓴다 (GUI 드래그, 반칙 복귀).
@@ -65,6 +77,9 @@ public:
 
   /// pose 만 옮긴다 (드래그 중 미리보기). 파티클은 건드리지 않는다.
   void moveRobot(float x_px, float y_px);
+
+  /// 누적된 관측을 비운다 (GUI 리셋 버튼).
+  void clearObservations();
 
   // ── 추정 상태 ──────────────────────────────────────────────────
 

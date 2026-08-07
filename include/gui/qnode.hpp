@@ -113,11 +113,15 @@ class QNode : public QThread
 {
   Q_OBJECT
 public:
-  QNode(int argc, char **argv);
+  // rclcpp::init() 은 main() 이 먼저 부른다 — GUI 없이도 뜰 수 있어야 하므로
+  // ROS 초기화가 Qt 객체 생성에 묶여 있으면 안 된다.
+  QNode();
   ~QNode();
 
   // ball / obstacles 는 아직 GUI 스레드만 만지므로 이 함수도 거기서 부른다.
   // ROS 타이머로 옮기려면 그 소유권부터 정리해야 한다.
+  // 추적 갱신 + 발행. ROS 타이머가 돌리므로 GUI 가 멈춰도 계속된다.
+  void localizationTick();
   void publish_localization();
   void getParams();
 
@@ -155,7 +159,24 @@ public:
   UDPMsg udpMSG;
   MasterMsg masterMSG;
   PancompMsg panCompMSG;
+  // 팀 로봇 pose. udpCallback(ROS 스레드)이 쓰고 화면(Qt)이 읽으므로
+  // 직접 읽지 말고 teammates() 로 한 번에 복사할 것.
   Teammate robot1, robot2, robot3, robot4;
+  std::mutex teammate_mutex_;
+
+  struct TeamSnapshot
+  {
+    Teammate r[4];
+  };
+  TeamSnapshot teammates();
+  void resetTeammates();
+
+  // masterMSG 는 masterCallback(ROS)이 쓰고 화면(Qt)이 읽는다.
+  // master_move2ball_phase 가 std::string 이라 직접 읽으면 찢어진 값이
+  // 아니라 크래시가 난다. 반드시 아래 두 함수로만 접근할 것.
+  std::mutex master_mutex_;
+  MasterMsg masterState();
+  void clearMasterTarget();
 
   // For gamecontrol
   GameMsg gameMSG;
@@ -237,6 +258,7 @@ private:
   rclcpp::Subscription<humanoid_interfaces::msg::Udp2master>::SharedPtr udp_sub_;
   rclcpp::Subscription<humanoid_interfaces::msg::Master2localization>::SharedPtr master_sub_;
 
+  rclcpp::TimerBase::SharedPtr localization_timer_;
   rclcpp::Publisher<robocup_localization::msg::RobocupLocalization>::SharedPtr localization_pub_;
   rclcpp::Publisher<vision_interfaces::msg::PanAngleCompensation>::SharedPtr pan_angle_comp_pub_;
 

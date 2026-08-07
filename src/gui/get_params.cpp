@@ -1,5 +1,37 @@
 #include "gui/qnode.hpp"
 
+#include <filesystem>
+
+#include "ament_index_cpp/get_package_share_directory.hpp"
+
+namespace
+{
+/// 모델 경로 해석.
+///   - 절대경로("/...")면 그대로 쓴다.
+///   - "~/" 로 시작하면 홈 디렉터리를 붙인다.
+///   - 그 외 상대경로는 이 패키지의 share 디렉터리 기준이다.
+std::string resolveModelPath(const std::string &path)
+{
+    if (path.empty())
+        return path;
+
+    if (path[0] == '/')
+        return path;
+
+    if (path.rfind("~/", 0) == 0)
+    {
+        const char *home = std::getenv("HOME");
+        if (home && *home)
+            return std::string(home) + path.substr(1);
+        return path;
+    }
+
+    const std::string base =
+        ament_index_cpp::get_package_share_directory("robocup_localization");
+    return (std::filesystem::path(base) / path).string();
+}
+}  // namespace
+
 void QNode::getParams()
 {
 
@@ -66,6 +98,8 @@ void QNode::getParams()
     // ===== Learned (ONNX) localization =====
     node->declare_parameter("learned.mlp_enable", false);
     node->declare_parameter("learned.reloc_enable", false);
+    // 모델 경로는 절대·상대 둘 다 받는다. 상대경로는 패키지 share 기준이고,
+    // 모델은 CMakeLists 의 install(DIRECTORY models ...) 로 거기 놓인다.
     node->declare_parameter("learned.mlp_model", "");
     node->declare_parameter("learned.reloc_model", "");
     node->declare_parameter("learned.reloc_topk", 30);
@@ -74,8 +108,24 @@ void QNode::getParams()
 
     learned_mlp_enable_ = node->get_parameter("learned.mlp_enable").as_bool();
     learned_reloc_enable_ = node->get_parameter("learned.reloc_enable").as_bool();
-    learned_mlp_model_ = node->get_parameter("learned.mlp_model").as_string();
-    learned_reloc_model_ = node->get_parameter("learned.reloc_model").as_string();
+
+    learned_mlp_model_ =
+        resolveModelPath(node->get_parameter("learned.mlp_model").as_string());
+    learned_reloc_model_ =
+        resolveModelPath(node->get_parameter("learned.reloc_model").as_string());
+
+    // 없는 파일은 여기서 알려준다. OnnxLocalizer 까지 가면 세션 로드 예외로만
+    // 드러나서 "경로가 틀렸다"는 게 잘 안 보인다.
+    for (const auto &[enabled, path, name] :
+         {std::tuple{learned_mlp_enable_, learned_mlp_model_, "mlp"},
+          std::tuple{learned_reloc_enable_, learned_reloc_model_, "reloc"}})
+    {
+        if (enabled && !std::filesystem::exists(path))
+        {
+            RCLCPP_ERROR(node->get_logger(),
+                         "[learned] %s 모델을 찾을 수 없습니다: %s", name, path.c_str());
+        }
+    }
     learned_reloc_topk_ = node->get_parameter("learned.reloc_topk").as_int();
     learned_sign_right_ = node->get_parameter("learned.sign_right").as_double();
     learned_sign_forward_ = node->get_parameter("learned.sign_forward").as_double();
