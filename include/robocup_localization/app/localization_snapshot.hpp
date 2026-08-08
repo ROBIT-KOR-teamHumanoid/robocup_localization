@@ -4,18 +4,14 @@
 #include <vector>
 
 #include "robocup_localization/core/types/pose2d.hpp"
+#include "robocup_localization/core/types/trajectory_point.hpp"
 #include "robocup_localization/app/localization_config.hpp"
 #include "robocup_localization/core/world_model.hpp"
 #include "robocup_localization/core/mcl/particle_filter.hpp"
+#include "robocup_localization/inference/inference_types.hpp"
 
 namespace robocup_localization::app
 {
-
-struct RobotTrailPoint
-{
-  int X = 0;
-  int Y = 0;
-};
 
 struct RobotStateSnapshot
 {
@@ -26,7 +22,7 @@ struct RobotStateSnapshot
   float odom_right = 0.0f;
   float ik_x = 0.0f;
   float ik_y = 0.0f;
-  std::vector<RobotTrailPoint> trail;
+  std::vector<core::TrajectoryPoint> trail;
 };
 
 struct MasterStateSnapshot
@@ -51,6 +47,12 @@ struct GameStateSnapshot
   int ready_count = 0;
 };
 
+struct InferenceStateSnapshot
+{
+  inference::MlpResult mlp;
+  inference::RelocResult reloc;
+};
+
 struct LocalizationSnapshot
 {
   core::WorldModelSnapshot world;
@@ -58,6 +60,7 @@ struct LocalizationSnapshot
   core::ParticleFilterSnapshot particle_filter;
   MasterStateSnapshot master;
   GameStateSnapshot game;
+  InferenceStateSnapshot inference;
 };
 
 class LocalizationSnapshotSource

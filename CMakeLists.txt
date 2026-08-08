@@ -22,13 +22,22 @@ find_package(OpenCV REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 
+# onnxruntime (C++) — 학습형 ONNX 추론.
+option(WITH_INFERENCE "학습형 ONNX 추론 빌드" ON)
+set(ONNXRUNTIME_ROOTDIR "/home/robit/onnxruntime" CACHE PATH "onnxruntime C++ install root")
+if(WITH_INFERENCE AND NOT EXISTS "${ONNXRUNTIME_ROOTDIR}/include/onnxruntime_cxx_api.h")
+  message(WARNING
+    "onnxruntime C++ 헤더를 찾을 수 없습니다: ${ONNXRUNTIME_ROOTDIR}/include\n"
+    "  학습형 추론을 끄고 빌드합니다. "
+    "사용하려면 --cmake-args -DONNXRUNTIME_ROOTDIR=<경로> 를 지정하세요.")
+  set(WITH_INFERENCE OFF)
+endif()
+
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RobocupLocalization.msg"
 )
 ament_export_dependencies(rosidl_default_runtime)
 
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
 find_package(
   rclcpp
   REQUIRED
@@ -36,17 +45,20 @@ find_package(
 install(DIRECTORY resources
   DESTINATION share/${PROJECT_NAME}
 )
-install(DIRECTORY launch
+
+install(DIRECTORY model
   DESTINATION share/${PROJECT_NAME}
 )
 
 file(GLOB PRO_SOURCE_DIR
   RELATIVE ${CMAKE_SOURCE_DIR}
   FOLLOW_SYMLINKS
+  CONFIGURE_DEPENDS
   src/*.cpp
   src/core/*.cpp
   src/core/mcl/*.cpp
   src/app/*.cpp
+  src/inference/*.cpp
   src/ros/*.cpp
   src/ui/*.cpp
 )
@@ -81,6 +93,17 @@ set_target_properties(${EXE_TARGET} PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
 ament_target_dependencies(${EXE_TARGET} rclcpp Boost humanoid_interfaces gamecontroller vision_interfaces OpenCV ament_index_cpp)
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(${EXE_TARGET} Qt5::Widgets Qt5::Core Qt5::Gui Qt5::Network ${OpenCV_LIBRARIES} "${cpp_typesupport_target}")
+
+if(WITH_INFERENCE)
+  target_include_directories(${EXE_TARGET} PRIVATE "${ONNXRUNTIME_ROOTDIR}/include")
+  target_link_libraries(${EXE_TARGET} "${ONNXRUNTIME_ROOTDIR}/lib/libonnxruntime.so")
+  target_compile_definitions(${EXE_TARGET} PRIVATE ROBOCUP_LOCALIZATION_WITH_ONNX)
+  # libonnxruntime.so.1 런타임 검색 경로 (RPATH)
+  set_target_properties(${EXE_TARGET} PROPERTIES
+    BUILD_RPATH "${ONNXRUNTIME_ROOTDIR}/lib"
+    INSTALL_RPATH "${ONNXRUNTIME_ROOTDIR}/lib")
+endif()
+
 install(TARGETS ${EXE_TARGET} DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY config DESTINATION share/${PROJECT_NAME})

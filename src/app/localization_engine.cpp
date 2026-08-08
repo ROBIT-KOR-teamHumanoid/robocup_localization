@@ -47,7 +47,7 @@ void LocalizationEngine::submitFeatures(
       std::move(observations), valid_observation, robot_yaw_deg);
 }
 
-FeatureCalcResult LocalizationEngine::correctParticles(
+core::MclResult LocalizationEngine::correctParticles(
     float robot_x, float robot_y, float robot_yaw_deg)
 {
   return particle_filter_.correct(robot_x, robot_y, robot_yaw_deg);

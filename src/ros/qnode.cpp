@@ -44,9 +44,9 @@ QNode::QNode(int argc, char **argv)
     localization_engine_.setObservationFilterDistance(999999.0); // 관측 pre-filter 거리 임계값 false
   }
 
+  initInference();
 
-  if (soccer_mode_)
-    startMclProcessing();
+  startMclProcessing();
 
   this->start();
 }
@@ -94,20 +94,14 @@ QNode::localizationSnapshot() const
 
   {
     std::lock_guard<std::mutex> lock(robot0_mutex);
-    snapshot.robot.pose.x = robot0.x;
-    snapshot.robot.pose.y = robot0.y;
-    snapshot.robot.pose.yaw_deg = robot0.z;
+    snapshot.robot.pose = robot0;  // ROBOT → Pose2D 슬라이싱
     snapshot.robot.odom_forward = robot0.odom_fx;
     snapshot.robot.odom_backward = robot0.odom_bx;
     snapshot.robot.odom_left = robot0.odom_ly;
     snapshot.robot.odom_right = robot0.odom_ry;
     snapshot.robot.ik_x = robot0.now_ik_param_x;
     snapshot.robot.ik_y = robot0.now_ik_param_y;
-    snapshot.robot.trail.reserve(robot0.TIME_STAMP.size());
-    for (const auto& point : robot0.TIME_STAMP)
-    {
-      snapshot.robot.trail.push_back({point.X, point.Y});
-    }
+    snapshot.robot.trail = robot0.trail;
   }
   {
     std::lock_guard<std::mutex> lock(master_state_mutex_);
@@ -117,7 +111,69 @@ QNode::localizationSnapshot() const
     std::lock_guard<std::mutex> lock(game_state_mutex_);
     snapshot.game = game_state_;
   }
+  {
+    std::lock_guard<std::mutex> lock(inference_mutex_);
+    snapshot.inference = inference_state_;
+  }
   return snapshot;
+}
+
+void QNode::initInference()
+{
+  localization_config_.inference = {};
+
+  if (!inference_config_.mlp_enable && !inference_config_.reloc_enable)
+  {
+    return;
+  }
+
+  inference_encoder_.setSigns(
+      inference_config_.sign_right, inference_config_.sign_forward);
+
+  if (!inference_.init(inference_config_))
+  {
+    RCLCPP_ERROR(
+        node->get_logger(), "[inference] 초기화 실패: %s",
+        inference_.lastError().c_str());
+  }
+
+  // 요청했고 실제로 세션이 올라온 것만 활성으로 본다.
+  localization_config_.inference.mlp =
+      inference_config_.mlp_enable && inference_.mlpReady();
+  localization_config_.inference.reloc =
+      inference_config_.reloc_enable && inference_.relocReady();
+
+  RCLCPP_INFO(
+      node->get_logger(), "[inference] mlp=%s reloc=%s",
+      localization_config_.inference.mlp ? "on" : "off",
+      localization_config_.inference.reloc ? "on" : "off");
+}
+
+void QNode::runInference(
+    const vision_interfaces::msg::Robocupvisionfeature::SharedPtr& msg,
+    double yaw_deg)
+{
+  const auto features =
+      robocup_localization::inference::ObservationEncoder::fromMessage(*msg);
+  const auto obs = inference_encoder_.buildObs(features, yaw_deg);
+
+  robocup_localization::inference::MlpResult mlp;
+  robocup_localization::inference::RelocResult reloc;
+
+  if (inference_config_.mlp_enable && inference_.mlpReady())
+  {
+    mlp = inference_.runMlp(obs);
+  }
+  if (inference_config_.reloc_enable && inference_.relocReady())
+  {
+    reloc = inference_.runReloc(obs);
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(inference_mutex_);
+    inference_state_.mlp = mlp;
+    inference_state_.reloc = std::move(reloc);
+  }
 }
 
 void QNode::previewRobotPosition(float x, float y)
@@ -126,7 +182,7 @@ void QNode::previewRobotPosition(float x, float y)
     std::lock_guard<std::mutex> lock(robot0_mutex);
     robot0.x = x;
     robot0.y = y;
-    robot0.TIME_STAMP.clear();
+    robot0.trail.clear();
   }
   {
     std::lock_guard<std::mutex> lock(master_state_mutex_);
@@ -142,8 +198,8 @@ void QNode::placeRobot(float x, float y, float particle_range)
     std::lock_guard<std::mutex> lock(robot0_mutex);
     robot0.x = x;
     robot0.y = y;
-    robot0.TIME_STAMP.clear();
-    yaw_deg = robot0.z;
+    robot0.trail.clear();
+    yaw_deg = robot0.yaw_deg;
   }
   {
     std::lock_guard<std::mutex> lock(master_state_mutex_);
@@ -242,10 +298,10 @@ void QNode::mclProcessing()
       std::lock_guard<std::mutex> lock(robot0_mutex);
       robot_x = robot0.x;
       robot_y = robot0.y;
-      robot_yaw_deg = robot0.z;
+      robot_yaw_deg = robot0.yaw_deg;
     }
 
-    const FeatureCalcResult result =
+    const auto result =
         localization_engine_.correctParticles(robot_x, robot_y, robot_yaw_deg);
 
     if (result.pose_updated)
@@ -258,7 +314,7 @@ void QNode::mclProcessing()
 }
 void QNode::run()
 {
-  rclcpp::WallRate loop_rate(localization_config_.ros_spin_hz);
+  rclcpp::WallRate loop_rate(localization_config_.loop_rate.ros_spin_hz);
   auto last_update = std::chrono::steady_clock::now();
 
   while (rclcpp::ok())
@@ -334,7 +390,7 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
     std::lock_guard<std::mutex> robot0_lock(robot0_mutex);
     robot0_x = robot0.x;
     robot0_y = robot0.y;
-    robot0_z = robot0.z;
+    robot0_z = robot0.yaw_deg;
   }
 
   std::vector<VISION_POINT> observations;
@@ -406,12 +462,30 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
     mcl_active = game_state_.state == 3 ||
         (game_state_.state == 1 && game_state_.ready_count >= 2);
   }
+  const bool has_features = !observations.empty();
   const bool valid_observation =
-      soccer_mode_ && !observations.empty() &&
-      vision_pan_flag_ == 0 && mcl_active;
+      has_features && vision_pan_flag_ == 0 && mcl_active;
 
   localization_engine_.submitFeatures(
       std::move(observations), valid_observation, robot0_z);
+
+  // ===== 학습형(ONNX) 추론: vision_feature 프레임과 동기 실행 =====
+  // MCL 과 독립적으로 돈다 — mcl_active/pan_flag 게이트를 타지 않는다.
+  if (inference_config_.mlp_enable || inference_config_.reloc_enable)
+  {
+    if (has_features)
+    {
+      runInference(msg, robot0_z);
+    }
+    else
+    {
+      // 특징점이 하나도 없으면 obs 가 전부 valid=0 + yaw 만 남아 의미 없는
+      // pose 가 나온다. 추론을 건너뛰고 직전 결과를 무효화한다.
+      std::lock_guard<std::mutex> lock(inference_mutex_);
+      inference_state_.mlp = {};
+      inference_state_.reloc = {};
+    }
+  }
 
   if (valid_observation)
   {
@@ -427,12 +501,12 @@ void QNode::imuCallback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg)
 {
   std::lock_guard<std::mutex> lock(robot0_mutex);
   double raw_yaw = msg->yaw;
-  ik_d_yaw = raw_yaw - robot0.z;
+  ik_d_yaw = raw_yaw - robot0.yaw_deg;
   if (ik_d_yaw > 180.0)
     ik_d_yaw -= 360.0;
   if (ik_d_yaw < -180.0)
     ik_d_yaw += 360.0;
-  robot0.z = raw_yaw;
+  robot0.yaw_deg = raw_yaw;
 }
 
 void QNode::visionCallback(const vision_interfaces::msg::Robocupvision::SharedPtr msg)
@@ -457,10 +531,10 @@ void QNode::visionCallback(const vision_interfaces::msg::Robocupvision::SharedPt
     float robot0_z;
     {
       std::lock_guard<std::mutex> lock(robot0_mutex);
-      robot0_z = robot0.z;
+      robot0_z = robot0.yaw_deg;
     }
     robot_y_sign =
-        Filter::computeYSign(robot0_z, goal_post_pan_deg_buf_);
+        PreFilter::computeYSign(robot0_z, goal_post_pan_deg_buf_);
 
     bool mirror_particles = false;
     {
@@ -485,7 +559,7 @@ void QNode::visionCallback(const vision_interfaces::msg::Robocupvision::SharedPt
     std::lock_guard<std::mutex> lock(robot0_mutex);
     robot_pose.x = robot0.x;
     robot_pose.y = robot0.y;
-    robot_pose.yaw_deg = robot0.z;
+    robot_pose.yaw_deg = robot0.yaw_deg;
   }
 
   robocup_localization::core::VisionObservation observation;
@@ -507,8 +581,8 @@ void QNode::visionCallback(const vision_interfaces::msg::Robocupvision::SharedPt
 
 void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg)
 {
-  ik_Xmoved = msg->x;
-  ik_Ymoved = msg->y;
+  const double ik_Xmoved = msg->x;
+  const double ik_Ymoved = msg->y;
 
   bool foot_align;
   {
@@ -516,11 +590,13 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
     foot_align = master_state_.master_move2ball_phase == "FOOT_ALIGN";
   }
 
+  double ik_dx;
+  double ik_dy;
   {
     std::lock_guard<std::mutex> robot0_lock(robot0_mutex);
     // 이동 전 위치 저장
-    ik_prev_x = robot0.x;
-    ik_prev_y = robot0.y;
+    const double ik_prev_x = robot0.x;
+    const double ik_prev_y = robot0.y;
 
     robot0.move(ik_Xmoved, ik_Ymoved);
 
@@ -536,26 +612,23 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
   }
 
   // 로봇 오도메트리에서 계산한 이동량만 ParticleFilter에 전달한다.
-  ik_trans = std::sqrt(ik_dx * ik_dx + ik_dy * ik_dy);
+  // 노이즈 표준편차 계산은 ROBOT(오도메트리 모션 모델)이 소유한다.
+  const double ik_trans = std::sqrt(ik_dx * ik_dx + ik_dy * ik_dy);
 
   robocup_localization::core::ParticleMotion motion;
   motion.translation_px = ik_trans;
   motion.yaw_delta_deg = ik_d_yaw;
-  motion.yaw_stddev = ALPHA5 * std::fabs(ik_d_yaw) + 0.1;
+  motion.yaw_stddev = ROBOT::yawStddev(ik_d_yaw);
 
   if (ik_trans >= 0.1)
   {
-    ik_rot1 = std::atan2(ik_Ymoved, ik_Xmoved);
+    const double ik_rot1 = std::atan2(ik_Ymoved, ik_Xmoved);
     motion.world_direction_rad = std::atan2(ik_dy, ik_dx);
-
-    ik_trans_dev = ALPHA3 * ik_trans + ALPHA4 * std::fabs(ik_rot1);
-    ik_rot1_dev = ALPHA1 * std::fabs(ik_rot1) + ALPHA2 * ik_trans;
-    motion.translation_stddev = ik_trans_dev;
-    motion.direction_stddev = ik_rot1_dev;
+    motion.translation_stddev = ROBOT::translationStddev(ik_trans, ik_rot1);
+    motion.direction_stddev = ROBOT::directionStddev(ik_trans, ik_rot1);
   }
 
   localization_engine_.applyParticleMotion(motion);
-
 }
 
 void QNode::gameControlCallback(const gamecontroller::msg::Gamecontroldata::SharedPtr msg)
@@ -592,10 +665,10 @@ void QNode::gameControlCallback(const gamecontroller::msg::Gamecontroldata::Shar
     std::lock_guard<std::mutex> robot0_lock(robot0_mutex);
     robot0.x = FieldCoord::toPixelX(field_x);
     robot0.y = FieldCoord::toPixelY(-FieldCoord::B / 2);
-    robot0.TIME_STAMP.clear();
+    robot0.trail.clear();
     robot_x = robot0.x;
     robot_y = robot0.y;
-    robot_yaw_deg = robot0.z;
+    robot_yaw_deg = robot0.yaw_deg;
   }
 
   resetParticles(robot_x, robot_y, robot_yaw_deg, particle_range_);

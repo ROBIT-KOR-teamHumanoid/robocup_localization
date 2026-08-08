@@ -1,0 +1,37 @@
+/**:
+  ros__parameters:
+    robot_feature: "adult" # "kids" or "adult"
+
+    topic:
+      sub_topics:
+        imu: "Imu"
+        vision: "vision"
+        vision_feature: "vision_feature"
+        ik: "ikcoordinate"
+        game_controller: "gamecontroldata"
+        udp: "udp"
+        task_planner: "master2local"
+      
+      pub_topics:
+        localization: "localization"
+
+    particle_filter:
+      weight_update_threshold: 4.0
+      particle_nums: 8000
+      noise_enable: false
+      foot_align_odom_scale: 0.65
+
+    rate:
+      ros_spin_hz: 20.0
+      ui_data_hz: 20.0
+      ui_render_hz: 20.0
+
+    inference:
+      mlp_enable: true          # vision_imu.onnx: 단일프레임 pose 추정
+      reloc_enable: false       # clsreg.onnx: 재위치추정 후보 격자
+   
+      mlp_model: "model/vision_imu.onnx"
+      reloc_model: "model/clsreg.onnx"
+      reloc_topk: 30            # 상위 확률 셀 개수
+      sign_right: -1.0          # obs 좌표 부호
+      sign_forward: 1.0      

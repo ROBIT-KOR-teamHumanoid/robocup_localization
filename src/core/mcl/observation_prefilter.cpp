@@ -1,8 +1,8 @@
-#include "robocup_localization/core/mcl/observation_filter.hpp"
+#include "robocup_localization/core/mcl/observation_prefilter.hpp"
 
 #include <cmath>
 
-Filter::Filter()
+PreFilter::PreFilter()
 {
     for (int i = 0; i < FieldCoord::FEATURE_POINT_COUNT; i++)
     {
@@ -13,7 +13,7 @@ Filter::Filter()
     }
 }
 
-void Filter::computeCircle(std::vector<VISION_POINT>& vect, int start, double yaw)
+void PreFilter::computeCircle(std::vector<VISION_POINT>& vect, int start, double yaw)
 {
     
     // POST CONDITION : CIRCLE_CENTER, CIRCLE_R
@@ -46,10 +46,20 @@ void Filter::computeCircle(std::vector<VISION_POINT>& vect, int start, double ya
         if (CIRCLE_R < dis)
             CIRCLE_R = dis;
     }
-    CIRCLE_R += FieldCoord::CIRCLE_MARGIN_PX;
+    CIRCLE_R += CIRCLE_MARGIN_PX;
+
+    // T자 특징점은 분포가 드물어 서클 범위를 추가로 확장
+    for (int i = start; i < (int)vect.size(); i++)
+    {
+        if (vect[i].FEATURE_TYPE == (int)FieldCoord::T_SHAPE)
+        {
+            CIRCLE_R += T_SHAPE_CIRCLE_MARGIN_PX;
+            break;
+        }
+    }
 }
 
-void Filter::setCircle(double yaw, std::vector<VISION_POINT>& vect)
+void PreFilter::setCircle(double yaw, std::vector<VISION_POINT>& vect)
 {
     // PRE CONDITION : YAW, VECTOR<VISION_POINT>
     // POST CONDITION : CIRCLE_CENTER, CIRCLE_R
@@ -58,22 +68,9 @@ void Filter::setCircle(double yaw, std::vector<VISION_POINT>& vect)
     if (vect.empty())
         return;
     computeCircle(vect, 0, yaw);
-
-    // T자 특징점은 분포가 드물어 서클 범위를 추가로 확장
-    bool has_t_shape = false;
-    for (const auto& vp : vect)
-    {
-        if (vp.FEATURE_TYPE == (int)FieldCoord::T_SHAPE)
-        {
-            has_t_shape = true;
-            break;
-        }
-    }
-    if (has_t_shape)
-        CIRCLE_R += FieldCoord::T_SHAPE_CIRCLE_MARGIN_PX;
 }
 
-void Filter::checkLocalPoint(int ago_point_cnt, double yaw, std::vector<VISION_POINT>& vect)
+void PreFilter::checkLocalPoint(int ago_point_cnt, double yaw, std::vector<VISION_POINT>& vect)
 {
     // PRE CONDITION : ago_point_cnt, yaw, vect<VISION_POINT>
     // POST CONDITION : Local_point_check
@@ -84,18 +81,6 @@ void Filter::checkLocalPoint(int ago_point_cnt, double yaw, std::vector<VISION_P
 
     computeCircle(vect, ago_point_cnt, yaw);
 
-    bool has_t_shape = false;
-    for (int k = ago_point_cnt; k < (int)vect.size(); k++)
-    {
-        if (vect[k].FEATURE_TYPE == (int)FieldCoord::T_SHAPE)
-        {
-            has_t_shape = true;
-            break;
-        }
-    }
-    if (has_t_shape)
-        CIRCLE_R += FieldCoord::T_SHAPE_CIRCLE_MARGIN_PX;
-
     for (int i = 0; i < FieldCoord::FEATURE_POINT_COUNT; i++)
     {
         if (pow(CIRCLE_R, 2) > pow(CIRCLE_CENTER.x - Local_point_x[i], 2) + pow(CIRCLE_CENTER.y - Local_point_y[i], 2))
@@ -105,11 +90,15 @@ void Filter::checkLocalPoint(int ago_point_cnt, double yaw, std::vector<VISION_P
     }
 }
 
-void Filter::prefilter(std::vector<VISION_POINT>& vect)
+void PreFilter::dropUnmatched(std::vector<VISION_POINT>& vect)
 {
  
-    // PURPOSE : robot0 기준 estimated world 좌표와 nearest landmark 거리가 
+    // PURPOSE : robot0 기준 estimated world 좌표와 nearest landmark 거리가
     //           OBS_FILTER_DIST_M 초과인 관측 제거
+    // POST CONDITION : Local_point_on_off — 살아남은 관측이 매칭된 랜드마크만 1
+
+    for (int i = 0; i < FieldCoord::FEATURE_POINT_COUNT; i++)
+        Local_point_on_off[i] = 0;
 
     auto it = vect.begin();
     while (it != vect.end())
@@ -117,6 +106,7 @@ void Filter::prefilter(std::vector<VISION_POINT>& vect)
         int wx = VisionPointUtils::worldX(*it);
         int wy = VisionPointUtils::worldY(*it);
         double nearest = LARGE_DIST;
+        int    nearest_j = -1;
 
         for (int j = 0; j < FieldCoord::FEATURE_POINT_COUNT; j++)
         {
@@ -128,7 +118,10 @@ void Filter::prefilter(std::vector<VISION_POINT>& vect)
                 double dy_m = (Local_point_y[j] - wy) / FieldCoord::PX_PER_M_Y;
                 double d    = sqrt(dx_m * dx_m + dy_m * dy_m);
                 if (d < nearest)
-                    nearest = d;
+                {
+                    nearest   = d;
+                    nearest_j = j;
+                }
             }
         }
 
@@ -137,13 +130,19 @@ void Filter::prefilter(std::vector<VISION_POINT>& vect)
             threshold = OBS_FILTER_X_FEATURE_DIST_M;
 
         if (nearest > threshold)
+        {
             it = vect.erase(it);
+        }
         else
+        {
+            if (nearest_j >= 0)
+                Local_point_on_off[nearest_j] = 1;
             ++it;
+        }
     }
 }
 
-int Filter::computeYSign(double robot_yaw_deg, const std::vector<double>& goal_post_pan_degs)
+int PreFilter::computeYSign(double robot_yaw_deg, const std::vector<double>& goal_post_pan_degs)
 {
     if (goal_post_pan_degs.empty())
         return 0;
@@ -171,7 +170,7 @@ int Filter::computeYSign(double robot_yaw_deg, const std::vector<double>& goal_p
     return 0;
 }
 
-bool Filter::passBearing(double obs_angle, double exp_angle)
+bool PreFilter::passBearing(double obs_angle, double exp_angle)
 {
     // PRE CONDITION : obs_angle (관측 방향), exp_angle (예상 방향) - 라디안
     // POST CONDITION : 두 방향 차이가 BEARING_MAX_RAD 이내이면 true

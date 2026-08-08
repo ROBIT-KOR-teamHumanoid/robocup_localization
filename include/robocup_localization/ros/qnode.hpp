@@ -1,20 +1,6 @@
-/**
- * @file /include/robocup_localization25/qnode.hpp
- *
- * @brief Communications central!
- *
- * @date February 2011
- **/
-/*****************************************************************************
-** Ifdefs
-*****************************************************************************/
-
 #ifndef robocup_localization_QNODE_HPP_
 #define robocup_localization_QNODE_HPP_
 
-/*****************************************************************************
-** Includes
-*****************************************************************************/
 #ifndef Q_MOC_RUN
 #include <rclcpp/rclcpp.hpp>
 #endif
@@ -41,13 +27,12 @@
 #include "robocup_localization/app/localization_config.hpp"
 #include "robocup_localization/app/localization_engine.hpp"
 #include "robocup_localization/app/localization_snapshot.hpp"
+#include "robocup_localization/inference/observation_encoder.hpp"
+#include "robocup_localization/inference/onnx_localizer.hpp"
 
 #define DEG2RAD (M_PI / 180)
 
 // ===== Subscribe =====
-/*****************************************************************************
-** Class
-*****************************************************************************/
 class QNode : public QThread,
               public robocup_localization::app::LocalizationCommand,
               public robocup_localization::app::LocalizationSnapshotSource
@@ -87,7 +72,6 @@ private:
   std::string udp_topic;
   std::string master_topic;
   std::string local_pub_topic;
-  bool soccer_mode_ = true;
   double foot_align_odom_scale_ = 0.3;
 
   robocup_localization::app::LocalizationEngine localization_engine_;
@@ -100,6 +84,20 @@ private:
   mutable std::mutex master_state_mutex_;
   mutable std::mutex game_state_mutex_;
   int vision_pan_flag_ = 0;
+
+  // 학습형(ONNX) 추론. vision_feature 프레임과 동기 실행되고, 결과는
+  // inference_state_ 에 모았다가 localizationSnapshot() 으로만 밖에 나간다.
+  robocup_localization::inference::InferenceConfig inference_config_;
+  robocup_localization::inference::ObservationEncoder inference_encoder_;
+  robocup_localization::inference::OnnxLocalizer inference_;
+  mutable std::mutex inference_mutex_;
+  robocup_localization::app::InferenceStateSnapshot inference_state_;
+
+  void initInference();
+  void runInference(
+      const vision_interfaces::msg::Robocupvisionfeature::SharedPtr& msg,
+      double yaw_deg);
+  std::string resolveModelPath(const std::string& path) const;
 
   void imuCallback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg);
   void visionCallback(const vision_interfaces::msg::Robocupvision::SharedPtr msg);
@@ -129,40 +127,7 @@ private:
 
   std::vector<double> goal_post_pan_deg_buf_;
 
-  // ikCallback 작업 변수
-  double ik_Xmoved, ik_Ymoved;
-  double ik_prev_x, ik_prev_y;
-  double ik_dx, ik_dy;
-  double ik_rot1, ik_trans;
-  double ik_rot1_dev, ik_trans_dev;
   double ik_d_yaw = 0.0; // IMU yaw 변화량 (deg), 파티클 θ 업데이트에 사용
-
-  // rot1/trans/rot2 모션 모델 alpha 계수 (튜닝 가능)
-  // alpha1: rot 노이즈 ← rot 크기
-  // alpha2: rot 노이즈 ← trans 크기
-  // alpha3: trans 노이즈 ← trans 크기
-  // alpha4: trans 노이즈 ← rot 크기
-  // alpha5: yaw 노이즈 ← yaw delta 크기
-  static constexpr double ALPHA1 = 0.01;
-  static constexpr double ALPHA2 = 0.001;
-  static constexpr double ALPHA3 = 0.03;
-  static constexpr double ALPHA4 = 0.01;
-  static constexpr double ALPHA5 = 0.02;
-  static constexpr double IK_PX_MIN_X = FieldCoord::toPixelX(-FieldCoord::A / 2);
-  static constexpr double IK_PX_MAX_X = FieldCoord::toPixelX(FieldCoord::A / 2);
-  static constexpr double IK_PX_MIN_Y = FieldCoord::toPixelY(FieldCoord::B / 2);
-  static constexpr double IK_PX_MAX_Y = FieldCoord::toPixelY(-FieldCoord::B / 2);
-
-  //   1단계: ALPHA3부터 (위치 노이즈 제일 체감)
-  //        로봇 직진 → 파티클 퍼짐이 실제 오차와 비슷하면 OK
-
-  // 2단계: ALPHA1 (방향 노이즈)
-  //        제자리 회전 → 랜드마크 매칭 후 수렴 속도 확인
-
-  // 3단계: ALPHA5 (yaw 노이즈)
-  //        IMU 드리프트 구간에서 파티클 θ가 랜드마크로 보정되는지 확인
-
-  // 4단계: ALPHA2, ALPHA4는 마지막에 미세 조정
 
   void startMclProcessing();
   void mclProcessing();

@@ -97,6 +97,7 @@ MainWindow::MainWindow(
       snapshots_(&snapshots),
       commands_(&commands),
       localization_snapshot_(snapshots.localizationSnapshot()),
+      localization_config_(snapshots.localizationConfig()),
       ui(new Ui::MainWindowDesign)
 {
   ui->setupUi(this);
@@ -105,7 +106,7 @@ MainWindow::MainWindow(
   QIcon icon("://ros-icon.png");
   this->setWindowIcon(icon);
 
-  const auto config = snapshots_->localizationConfig();
+  const auto& loop_rate = localization_config_.loop_rate;
   const auto interval_ms = [](double hz)
   {
     const double safe_hz = std::max(0.1, hz);
@@ -115,12 +116,12 @@ MainWindow::MainWindow(
   // 데이터 업데이트 타이머
   m_DataTimer = new QTimer(this);
   connect(m_DataTimer, SIGNAL(timeout()), this, SLOT(main()));
-  m_DataTimer->start(interval_ms(config.ui_data_hz));
+  m_DataTimer->start(interval_ms(loop_rate.ui_data_hz));
 
   // UI 업데이트 타이머
   m_screenTimer = new QTimer(this);
   connect(m_screenTimer, SIGNAL(timeout()), this, SLOT(Print_Screen()));
-  m_screenTimer->start(interval_ms(config.ui_render_hz));
+  m_screenTimer->start(interval_ms(loop_rate.ui_render_hz));
 
   // 맵 QPixmap 동적 생성 (FieldCoord 기반)
   buf = QPixmap(FieldCoord::MAP_W, FieldCoord::MAP_H);
@@ -312,7 +313,7 @@ void MainWindow::setting()
 
     const std::string share_dir =
         ament_index_cpp::get_package_share_directory("robocup_localization");
-    String param = "";
+    std::string param = "";
 #ifdef ROBIT_HUMANOID_ROBOT_NUMBER_1
     param = share_dir + "/resources/param/PARAM1.txt";
 #endif
@@ -462,6 +463,42 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
     scene->addLine(
         cvt_Print_xy(particle.x), cvt_Print_xy(particle.y),
         cvt_Print_xy(particle.x), cvt_Print_xy(particle.y), grayPen);
+  }
+
+  // PRINT INFERENCE (ONNX) ESTIMATE
+  {
+    const auto& inference = localization_snapshot_.inference;
+
+    // clsreg 재위치추정 후보: 청록 점(확률 클수록 크게)
+    if (localization_config_.inference.reloc && inference.reloc.valid)
+    {
+      QPen cyanPen(QColor(0, 200, 200));
+      cyanPen.setWidth(1);
+      QBrush cyanBrush(QColor(0, 200, 200, 140));
+      for (const auto& candidate : inference.reloc.candidates)
+      {
+        const double px = cvt_Print_xy(FieldCoord::toPixelX(candidate.x_m));
+        const double py = cvt_Print_xy(FieldCoord::toPixelY(candidate.y_m));
+        int r = 2 + static_cast<int>(candidate.prob * 10.0);
+        if (r > 8)
+          r = 8;
+        scene->addEllipse(px - r, py - r, r * 2, r * 2, cyanPen, cyanBrush);
+      }
+    }
+
+    // vision_imu 단일프레임 pose: 자홍 원 + 십자
+    if (localization_config_.inference.mlp && inference.mlp.valid)
+    {
+      QPen magentaPen(QColor(255, 0, 255));
+      magentaPen.setWidth(3);
+      QBrush magentaBrush(QColor(255, 0, 255, 90));
+      const double px = cvt_Print_xy(FieldCoord::toPixelX(inference.mlp.x_m));
+      const double py = cvt_Print_xy(FieldCoord::toPixelY(inference.mlp.y_m));
+      const int r = 10;
+      scene->addEllipse(px - r, py - r, r * 2, r * 2, magentaPen, magentaBrush);
+      scene->addLine(px - r, py, px + r, py, magentaPen);
+      scene->addLine(px, py - r, px, py + r, magentaPen);
+    }
   }
 
   // PRINT TIMESTAMP
@@ -818,7 +855,7 @@ void MainWindow::on_btn_objects_save_clicked()
   // purpose : 현재 적용되어있는 오도메트리 값을 입출력스트림을 통해 저장
 
   std::string share_dir = ament_index_cpp::get_package_share_directory("robocup_localization");
-  String param = "";
+  std::string param = "";
 #ifdef ROBIT_HUMANOID_ROBOT_NUMBER_1
   param = share_dir + "/resources/param/PARAM1.txt";
 #endif

@@ -1,0 +1,143 @@
+/**
+ * @file observation_encoder.cpp
+ * @brief observation_encoder.hpp 구현 (ONNX 무관, 순수 좌표 변환)
+ */
+
+#include "robocup_localization/inference/observation_encoder.hpp"
+
+#include <algorithm>
+#include <cmath>
+
+namespace robocup_localization::inference
+{
+
+namespace
+{
+
+/// 병렬 배열 두 개를 (x, y) 쌍 목록으로. 길이가 다르면 짧은 쪽에 맞춘다.
+std::vector<FeaturePoint> pack(
+    const std::vector<double>& vx, const std::vector<double>& vy)
+{
+  std::vector<FeaturePoint> out;
+  const std::size_t n = std::min(vx.size(), vy.size());
+  out.reserve(n);
+  for (std::size_t i = 0; i < n; ++i)
+  {
+    out.push_back({vx[i], vy[i]});
+  }
+  return out;
+}
+
+/// (right_m, forward_m) 벡터를 거리순으로 정렬해 [x,y,valid]*n_slots 슬롯에 채운다.
+/// 슬롯이 남으면 valid=0 으로 패딩한다 (학습 시와 동일).
+void fillSlots(
+    std::vector<std::array<double, 2>> points, int slot_count, float* out)
+{
+  std::sort(
+      points.begin(), points.end(),
+      [](const std::array<double, 2>& a, const std::array<double, 2>& b)
+      {
+        return (a[0] * a[0] + a[1] * a[1]) < (b[0] * b[0] + b[1] * b[1]);
+      });
+
+  const int filled =
+      std::min<int>(slot_count, static_cast<int>(points.size()));
+
+  for (int i = 0; i < slot_count; ++i)
+  {
+    if (i < filled)
+    {
+      out[i * 3 + 0] = static_cast<float>(points[i][0]);
+      out[i * 3 + 1] = static_cast<float>(points[i][1]);
+      out[i * 3 + 2] = 1.0f;
+    }
+    else
+    {
+      out[i * 3 + 0] = 0.0f;
+      out[i * 3 + 1] = 0.0f;
+      out[i * 3 + 2] = 0.0f;
+    }
+  }
+}
+
+}  // namespace
+
+ObservationEncoder::ObservationEncoder(double sign_right, double sign_forward)
+    : sign_right_(sign_right), sign_forward_(sign_forward)
+{
+}
+
+void ObservationEncoder::setSigns(double sign_right, double sign_forward)
+{
+  sign_right_ = sign_right;
+  sign_forward_ = sign_forward;
+}
+
+Features ObservationEncoder::fromMessage(
+    const vision_interfaces::msg::Robocupvisionfeature& msg)
+{
+  Features features;
+  features.corner = pack(msg.corner_point_vec_x, msg.corner_point_vec_y);
+  features.t_shape = pack(msg.t_point_vec_x, msg.t_point_vec_y);
+  features.cross = pack(msg.cross_point_vec_x, msg.cross_point_vec_y);
+  // goalpost: 메시지에 좌표 필드가 없다 → 비워두면 valid=0 으로 패딩된다.
+  return features;
+}
+
+Observation ObservationEncoder::buildObs(
+    const Features& features, double yaw_deg) const
+{
+  Observation obs{};
+
+  const double half_fov_rad = CAM_H_FOV_DEG * M_PI / 180.0 * 0.5;
+  const double sign_right = sign_right_;
+  const double sign_forward = sign_forward_;
+
+  const auto convert =
+      [sign_right, sign_forward, half_fov_rad](
+          const std::vector<FeaturePoint>& in, double far_m)
+      {
+        std::vector<std::array<double, 2>> out;
+        out.reserve(in.size());
+        for (const auto& point : in)
+        {
+          const double right = sign_right * (point.vx_mm / 1000.0);
+          const double forward = sign_forward * (point.vy_mm / 1000.0);
+
+          const double distance = std::hypot(right, forward);
+          if (distance <= CAM_NEAR_M || distance >= far_m)
+          {
+            continue;
+          }
+          if (std::fabs(std::atan2(right, forward)) >= half_fov_rad)
+          {
+            continue;
+          }
+
+          out.push_back({right, forward});
+        }
+        return out;
+      };
+
+  int offset = 0;
+  fillSlots(convert(features.corner, CAM_FAR_M), SLOT_CORNER,
+            obs.data() + offset);
+  offset += SLOT_CORNER * 3;
+  fillSlots(convert(features.t_shape, CAM_FAR_M), SLOT_T,
+            obs.data() + offset);
+  offset += SLOT_T * 3;
+  fillSlots(convert(features.cross, CAM_FAR_M), SLOT_CROSS,
+            obs.data() + offset);
+  offset += SLOT_CROSS * 3;
+  fillSlots(convert(features.goalpost, CAM_FAR_GOALPOST_M), SLOT_GOALPOST,
+            obs.data() + offset);
+  offset += SLOT_GOALPOST * 3;  // == OBS_VISION_SIZE (42)
+
+  const double yaw_rad = yaw_deg * M_PI / 180.0;
+  obs[offset + 0] = static_cast<float>(std::sin(yaw_rad));
+  obs[offset + 1] = static_cast<float>(std::cos(yaw_rad));
+
+  return obs;
+}
+
+}  // namespace robocup_localization::inference

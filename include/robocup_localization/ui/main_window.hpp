@@ -130,6 +130,7 @@ private:
   robocup_localization::app::LocalizationSnapshotSource* snapshots_;
   robocup_localization::app::LocalizationCommand* commands_;
   robocup_localization::app::LocalizationSnapshot localization_snapshot_;
+  robocup_localization::app::LocalizationConfig localization_config_;
   Ui::MainWindowDesign* ui;
 
   void closeEvent(QCloseEvent *event);
