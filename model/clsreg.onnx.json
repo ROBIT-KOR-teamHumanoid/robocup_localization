@@ -15,6 +15,7 @@
   },
   "cell_to_world": "cell c → ix=c%%nx, iy=c//nx; x=((ix+off_x)/nx)*A - A/2; y=((iy+off_y)/ny)*B - B/2",
   "use": "재위치추정 제안기: prob top-k 셀에서 파티클 샘플 → 셀중심+off → 월드",
+  "dataset_id": "20260813_fd9985",
   "cols": [
     0,
     1,

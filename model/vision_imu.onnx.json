@@ -10,6 +10,8 @@
     "B": 14.0
   },
   "note": "표준화는 그래프 내장 — 원시 관측을 그대로 넣을 것. cols 는 vision_imu(prev 2 제외).",
+  "dataset_id": "20260812_c9de87",
+  "feature_min_gate": 2,
   "cols": [
     0,
     1,
