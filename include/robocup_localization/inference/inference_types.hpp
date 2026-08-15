@@ -8,10 +8,36 @@ namespace robocup_localization::inference
 {
 
 // ===== obs 슬롯 규약 =====
+// 레이아웃(=obs 크기)은 모델이 정한 값이라 바꿀 수 없다.
 inline constexpr int SLOT_CORNER = 6;
 inline constexpr int SLOT_T = 4;
 inline constexpr int SLOT_CROSS = 2;
 inline constexpr int SLOT_GOALPOST = 2;
+
+// ===== 실제로 채우는 슬롯 수 (학습 분포 상한) =====
+// 레이아웃은 위 SLOT_* 그대로 두고, 그 뒤 슬롯은 valid=0 으로 남긴다.
+//
+// 학습셋(20260812_c9de87, 27만 프레임)의 슬롯별 발화율:
+//   corner  0:79.6%  1:25.8%  2:0.31%  3~5:0.000%
+//   t       0:77.6%  1:33.4%  2:0.07%  3  :0.000%
+//   cross   0: 3.4%  1: 2.4%
+//   goalpost0:22.2%  1     :0.000%   (두 골대는 22m 떨어져 동시관측 불가)
+//
+// 발화율 0 인 컬럼은 Standardizer 의 sd 가 0 이 되고, sd+1e-6 이 ONNX 그래프에
+// 그대로 구워져 있다 → 실기에서 그 슬롯에 값이 들어오면 표준화 후 1e6 배로
+// 증폭돼 첫 Linear 를 지배한다(나머지 43개 입력이 무의미해짐). 학습이 덜 된
+// 정도가 아니라 출력이 그 한 슬롯으로 결정되는 고장이라, 아예 채우지 않는다.
+//
+// 슬롯은 거리순 정렬이므로 잘려나가는 것은 항상 가장 먼 검출이다.
+inline constexpr int FILL_CORNER = 3;
+inline constexpr int FILL_T = 3;
+inline constexpr int FILL_CROSS = 2;
+inline constexpr int FILL_GOALPOST = 1;
+
+static_assert(
+    FILL_CORNER <= SLOT_CORNER && FILL_T <= SLOT_T &&
+        FILL_CROSS <= SLOT_CROSS && FILL_GOALPOST <= SLOT_GOALPOST,
+    "채우는 슬롯 수는 레이아웃 슬롯 수를 넘을 수 없습니다.");
 
 inline constexpr int OBS_VISION_SIZE =
     (SLOT_CORNER + SLOT_T + SLOT_CROSS + SLOT_GOALPOST) * 3;  // 42

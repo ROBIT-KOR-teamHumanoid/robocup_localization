@@ -28,10 +28,15 @@ std::vector<FeaturePoint> pack(
   return out;
 }
 
-/// (right_m, forward_m) 벡터를 거리순으로 정렬해 [x,y,valid]*n_slots 슬롯에 채운다.
+/// (right_m, forward_m) 벡터를 거리순으로 정렬해 [x,y,valid]*slot_count 슬롯에 채운다.
 /// 슬롯이 남으면 valid=0 으로 패딩한다 (학습 시와 동일).
+///
+/// fill_limit: 실제로 채울 슬롯 수. 그 뒤 슬롯은 검출이 더 있어도 비워 둔다 —
+/// 학습셋에서 한 번도 발화하지 않은 컬럼이라 표준화 스케일이 망가져 있다
+/// (inference_types.hpp 의 FILL_* 주석). 정렬이 거리순이라 잘리는 것은 먼 검출이다.
 void fillSlots(
-    std::vector<std::array<double, 2>> points, int slot_count, float* out)
+    std::vector<std::array<double, 2>> points, int slot_count, int fill_limit,
+    float* out)
 {
   std::sort(
       points.begin(), points.end(),
@@ -40,8 +45,8 @@ void fillSlots(
         return (a[0] * a[0] + a[1] * a[1]) < (b[0] * b[0] + b[1] * b[1]);
       });
 
-  const int filled =
-      std::min<int>(slot_count, static_cast<int>(points.size()));
+  const int filled = std::min(
+      {slot_count, fill_limit, static_cast<int>(points.size())});
 
   for (int i = 0; i < slot_count; ++i)
   {
@@ -129,17 +134,17 @@ Observation ObservationEncoder::buildObs(
       };
 
   int offset = 0;
-  fillSlots(convert(features.corner, CAM_FAR_M), SLOT_CORNER,
+  fillSlots(convert(features.corner, CAM_FAR_M), SLOT_CORNER, FILL_CORNER,
             obs.data() + offset);
   offset += SLOT_CORNER * 3;
-  fillSlots(convert(features.t_shape, CAM_FAR_M), SLOT_T,
+  fillSlots(convert(features.t_shape, CAM_FAR_M), SLOT_T, FILL_T,
             obs.data() + offset);
   offset += SLOT_T * 3;
-  fillSlots(convert(features.cross, CAM_FAR_M), SLOT_CROSS,
+  fillSlots(convert(features.cross, CAM_FAR_M), SLOT_CROSS, FILL_CROSS,
             obs.data() + offset);
   offset += SLOT_CROSS * 3;
   fillSlots(convert(features.goalpost, CAM_FAR_GOALPOST_M), SLOT_GOALPOST,
-            obs.data() + offset);
+            FILL_GOALPOST, obs.data() + offset);
   offset += SLOT_GOALPOST * 3;  // == OBS_VISION_SIZE (42)
 
   // 학습 규약(heading 0deg = 필드 +x, CCW)으로 옮긴 뒤 sin/cos 를 넣는다.
