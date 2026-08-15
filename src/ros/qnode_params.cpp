@@ -55,8 +55,10 @@ void QNode::getParams()
     node->declare_parameter("inference.mlp_model", "");
     node->declare_parameter("inference.reloc_model", "");
     node->declare_parameter("inference.reloc_topk", 30);
+    node->declare_parameter("inference.feature_min", 2);
     node->declare_parameter("inference.sign_right", -1.0);
     node->declare_parameter("inference.sign_forward", 1.0);
+    node->declare_parameter("inference.yaw_offset_deg", 90.0);
 
     imu_topic = node->get_parameter("topic.sub_topics.imu").as_string();
     vision_topic = node->get_parameter("topic.sub_topics.vision").as_string();
@@ -111,10 +113,14 @@ void QNode::getParams()
         resolveModelPath(node->get_parameter("inference.reloc_model").as_string());
     inference_config_.reloc_topk =
         node->get_parameter("inference.reloc_topk").as_int();
+    inference_config_.feature_min =
+        static_cast<int>(node->get_parameter("inference.feature_min").as_int());
     inference_config_.sign_right =
         node->get_parameter("inference.sign_right").as_double();
     inference_config_.sign_forward =
         node->get_parameter("inference.sign_forward").as_double();
+    inference_config_.yaw_offset_deg =
+        node->get_parameter("inference.yaw_offset_deg").as_double();
 
     // 없는 파일은 알림
     const std::pair<bool, std::string> model_checks[] = {

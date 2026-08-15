@@ -71,6 +71,11 @@ QNode::~QNode()
     mcl_running_ = false;
   }
 
+  {
+    std::lock_guard<std::mutex> lock(mcl_mutex_);
+    mcl_running_ = false;
+  }
+
   mcl_cv_.notify_one();
 
   if (mcl_thread_.joinable())
@@ -129,6 +134,7 @@ void QNode::initInference()
 
   inference_encoder_.setSigns(
       inference_config_.sign_right, inference_config_.sign_forward);
+  inference_encoder_.setYawOffsetDeg(inference_config_.yaw_offset_deg);
 
   if (!inference_.init(inference_config_))
   {
@@ -159,6 +165,19 @@ void QNode::runInference(
 
   robocup_localization::inference::MlpResult mlp;
   robocup_localization::inference::RelocResult reloc;
+
+  // 관측이 학습 조건(feature_min)에 미달하면 추론을 건너뛰고 무효로 둔다.
+  //   메시지 배열 길이가 아니라 **obs 의 valid 슬롯 수**로 판정한다 — 카메라
+  //   게이트(near/far/FOV)를 통과하지 못한 검출은 obs 에 들어가지 않으므로
+  //   메시지에 3개가 있어도 valid 가 0 일 수 있다.
+  const int n_valid = robocup_localization::inference::countValidSlots(obs);
+  if (n_valid < inference_config_.feature_min)
+  {
+    std::lock_guard<std::mutex> lock(inference_mutex_);
+    inference_state_.mlp = {};
+    inference_state_.reloc = {};
+    return;
+  }
 
   if (inference_config_.mlp_enable && inference_.mlpReady())
   {
@@ -459,8 +478,8 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
   bool mcl_active;
   {
     std::lock_guard<std::mutex> lock(game_state_mutex_);
-    mcl_active = game_state_.state == 3 ||
-        (game_state_.state == 1 && game_state_.ready_count >= 2);
+    mcl_active = true;//game_state_.state == 3 ||
+        // (game_state_.state == 1 && game_state_.ready_count >= 2);
   }
   const bool has_features = !observations.empty();
   const bool valid_observation =
@@ -479,8 +498,9 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
     }
     else
     {
-      // 특징점이 하나도 없으면 obs 가 전부 valid=0 + yaw 만 남아 의미 없는
-      // pose 가 나온다. 추론을 건너뛰고 직전 결과를 무효화한다.
+      // 메시지에 특징점 배열이 아예 비었으면 buildObs 를 부를 필요도 없다.
+      // (배열에 값이 있어도 카메라 게이트를 못 넘길 수 있으므로, 실제 판정은
+      //  runInference 안에서 obs 의 valid 슬롯 수로 다시 한다.)
       std::lock_guard<std::mutex> lock(inference_mutex_);
       inference_state_.mlp = {};
       inference_state_.reloc = {};

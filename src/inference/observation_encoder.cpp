@@ -73,6 +73,11 @@ void ObservationEncoder::setSigns(double sign_right, double sign_forward)
   sign_forward_ = sign_forward;
 }
 
+void ObservationEncoder::setYawOffsetDeg(double yaw_offset_deg)
+{
+  yaw_offset_deg_ = yaw_offset_deg;
+}
+
 Features ObservationEncoder::fromMessage(
     const vision_interfaces::msg::Robocupvisionfeature& msg)
 {
@@ -80,7 +85,11 @@ Features ObservationEncoder::fromMessage(
   features.corner = pack(msg.corner_point_vec_x, msg.corner_point_vec_y);
   features.t_shape = pack(msg.t_point_vec_x, msg.t_point_vec_y);
   features.cross = pack(msg.cross_point_vec_x, msg.cross_point_vec_y);
-  // goalpost: 메시지에 좌표 필드가 없다 → 비워두면 valid=0 으로 패딩된다.
+
+  if (msg.goal_post_x != 0.0 || msg.goal_post_y != 0.0)
+  {
+    features.goalpost.push_back({msg.goal_post_x, msg.goal_post_y});
+  }
   return features;
 }
 
@@ -133,7 +142,9 @@ Observation ObservationEncoder::buildObs(
             obs.data() + offset);
   offset += SLOT_GOALPOST * 3;  // == OBS_VISION_SIZE (42)
 
-  const double yaw_rad = yaw_deg * M_PI / 180.0;
+  // 학습 규약(heading 0deg = 필드 +x, CCW)으로 옮긴 뒤 sin/cos 를 넣는다.
+  // yaw_deg 자체는 0deg = +y 규약이라 그대로 쓰면 imu 만 90도 돌아간다.
+  const double yaw_rad = (yaw_deg + yaw_offset_deg_) * M_PI / 180.0;
   obs[offset + 0] = static_cast<float>(std::sin(yaw_rad));
   obs[offset + 1] = static_cast<float>(std::cos(yaw_rad));
 

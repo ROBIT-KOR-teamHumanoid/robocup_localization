@@ -20,6 +20,24 @@ inline constexpr int OBS_SIZE = OBS_VISION_SIZE + OBS_IMU_SIZE;  // 44
 
 using Observation = std::array<float, OBS_SIZE>;
 
+/// obs 의 valid 플래그(슬롯마다 [x, y, valid] 의 3번째)를 세어 실제 관측 개수를 낸다.
+///
+/// ※ vision_feature 메시지의 배열 길이로 세면 안 된다 — buildObs 의 카메라 게이트
+///   (near/far/FOV)를 통과하지 못한 검출이 빠지므로, 메시지에 3개가 있어도 obs 의
+///   valid 는 0 일 수 있다. 모델이 학습된 조건은 **obs 기준** 이다.
+inline int countValidSlots(const Observation& obs)
+{
+  int n = 0;
+  for (int i = 0; i < OBS_VISION_SIZE; i += 3)
+  {
+    if (obs[i + 2] > 0.5f)
+    {
+      ++n;
+    }
+  }
+  return n;
+}
+
 // ===== 모델이 학습된 필드 치수 (m) =====
 // vision_imu.onnx.json 의 to_world.A / to_world.B.
 // FieldCoord::A/B 와 다르면 MLP 출력이 조용히 틀린 좌표를 낸다 —
@@ -60,11 +78,22 @@ struct InferenceConfig
 
   int reloc_topk = 30;
 
+  /// obs 의 valid 슬롯이 이 값보다 적으면 추론을 건너뛴다.
+  ///
+  /// 모델은 "가시 특징점 >= feature_min" 프레임만으로 학습됐다(rejection sampling).
+  /// 그 미만은 분포 밖이고, 학습형 회귀는 그때 필드 중앙 쪽으로 끌린 값을 낸다 —
+  /// 무효로 두는 것이 낫다. 값은 export 산출물의 meta 와 맞춰야 한다:
+  ///   models/vision_imu.onnx.json 의 "feature_min_gate"
+  int feature_min = 2;
+
   // obs 좌표 부호 (학습 규약과 실기 vision 규약이 다르면 반전).
   //   right_m   = sign_right   * (vx_mm / 1000)   [기본 -1: right = -left]
   //   forward_m = sign_forward * (vy_mm / 1000)   [기본 +1]
   double sign_right = -1.0;
   double sign_forward = 1.0;
+
+  /// (dataset.py 의 imu = [sin(yaw), cos(yaw)], forward = dx*cos+dy*sin).
+  double yaw_offset_deg = 90.0;
 };
 
 /// MLP 단일프레임 pose 추론 결과 (필드 프레임, 미터).

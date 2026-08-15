@@ -28,6 +28,9 @@ public:
 
   void setSigns(double sign_right, double sign_forward);
 
+  /// imu 슬롯을 만들 때 yaw_deg 에 더할 각도(도). InferenceConfig 참조.
+  void setYawOffsetDeg(double yaw_offset_deg);
+
   /// 메시지 한 프레임에서 타입별 특징점을 뽑는다.
   /// goalpost 는 비전이 좌표를 주지 않아 비워둔다 → obs 슬롯이 valid=0 으로 채워진다.
   static Features fromMessage(
@@ -36,21 +39,15 @@ public:
   /// 학습의 visible_mask() 와 동일한 게이트를 적용해 obs[44] 를 조립한다.
   Observation buildObs(const Features& features, double yaw_deg) const;
 
-  // 카메라 가시성 게이트 — 학습 규약과 반드시 일치해야 한다.
-  //   dataset_constants.py: CAM = dict(h_fov_deg=90.0, near=0.35, far=6.0,
-  //                                    far_goalpost=12.0)
-  //   preprocessing.py visible_mask(): |atan2(right, forward)| < h_fov/2,
-  //                                    near < r < far  (goalpost 만 far_goalpost)
-  // 학습 시 obs 슬롯에는 이 게이트를 통과한 랜드마크만 들어갔다. 실기 관측을
-  // 그대로 넣으면 모델이 훈련 중 본 적 없는 원거리/시야밖 입력을 받게 된다.
   static constexpr double CAM_H_FOV_DEG = 90.0;
   static constexpr double CAM_NEAR_M = 0.35;
   static constexpr double CAM_FAR_M = 6.0;
-  static constexpr double CAM_FAR_GOALPOST_M = 12.0;
+  static constexpr double CAM_FAR_GOALPOST_M = 4.0;
 
 private:
   double sign_right_ = -1.0;
   double sign_forward_ = 1.0;
+  double yaw_offset_deg_ = 90.0;
 };
 
 }  // namespace robocup_localization::inference

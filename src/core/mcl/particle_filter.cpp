@@ -80,8 +80,14 @@ void ParticleFilter::submitFeatures(
       pipeline_.vision_point_vect.end(),
       std::make_move_iterator(observations.begin()),
       std::make_move_iterator(observations.end()));
-  pipeline_.filter.setCircle(
-      robot_yaw_deg, pipeline_.vision_point_vect);
+  // 여기서 setCircle 을 부르지 않는다.
+  //   · MCL 계산에는 불필요하다 — MclPipeline::run 이 dropUnmatched/가중치 계산
+  //     직전에 setCircle 을 다시 부른다(같은 누적 버퍼로).
+  //   · CIRCLE_CENTER/CIRCLE_R 은 UI 가 그대로 그리는 멤버라(main_window.cpp),
+  //     한 사이클에 여러 번 다른 값으로 덮어쓰면 화면의 원이 튄다. 이 호출은
+  //     **아직 correct 가 돌지 않은 누적 중간 상태**로 원을 그리게 만들었다.
+  //   남은 writer 는 두 개다: checkLocalPoint(부분집합, start=synthetic_cnt) 와
+  //   run() 의 setCircle(전체). 둘도 서로 다른 원이라 UI 는 여전히 흔들릴 수 있다.
   pipeline_.valid_observation = true;
 }
 
