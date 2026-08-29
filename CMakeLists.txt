@@ -23,13 +23,21 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 
 # onnxruntime (C++) — 학습형 ONNX 추론.
+# 경로를 박아두지 않고 탐색한다. 표준 위치 / CMAKE_PREFIX_PATH / 홈 디렉터리의
+# onnxruntime, 그리고 환경변수 ONNXRUNTIME_ROOT 가 가리키는 곳을 순서대로 본다.
 option(WITH_INFERENCE "학습형 ONNX 추론 빌드" ON)
-set(ONNXRUNTIME_ROOTDIR "/home/robit/onnxruntime" CACHE PATH "onnxruntime C++ install root")
-if(WITH_INFERENCE AND NOT EXISTS "${ONNXRUNTIME_ROOTDIR}/include/onnxruntime_cxx_api.h")
+find_path(ONNXRUNTIME_INCLUDE_DIR onnxruntime_cxx_api.h
+  HINTS ENV ONNXRUNTIME_ROOT ENV HOME
+  PATH_SUFFIXES include onnxruntime/include)
+find_library(ONNXRUNTIME_LIBRARY NAMES onnxruntime
+  HINTS ENV ONNXRUNTIME_ROOT ENV HOME
+  PATH_SUFFIXES lib onnxruntime/lib)
+if(WITH_INFERENCE AND NOT (ONNXRUNTIME_INCLUDE_DIR AND ONNXRUNTIME_LIBRARY))
   message(WARNING
-    "onnxruntime C++ 헤더를 찾을 수 없습니다: ${ONNXRUNTIME_ROOTDIR}/include\n"
+    "onnxruntime C++ 헤더/라이브러리를 찾을 수 없습니다.\n"
     "  학습형 추론을 끄고 빌드합니다. "
-    "사용하려면 --cmake-args -DONNXRUNTIME_ROOTDIR=<경로> 를 지정하세요.")
+    "사용하려면 ONNXRUNTIME_ROOT 환경변수를 설정하거나 "
+    "--cmake-args -DCMAKE_PREFIX_PATH=<onnxruntime 경로> 를 지정하세요.")
   set(WITH_INFERENCE OFF)
 endif()
 
@@ -95,13 +103,12 @@ rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typ
 target_link_libraries(${EXE_TARGET} Qt5::Widgets Qt5::Core Qt5::Gui Qt5::Network ${OpenCV_LIBRARIES} "${cpp_typesupport_target}")
 
 if(WITH_INFERENCE)
-  target_include_directories(${EXE_TARGET} PRIVATE "${ONNXRUNTIME_ROOTDIR}/include")
-  target_link_libraries(${EXE_TARGET} "${ONNXRUNTIME_ROOTDIR}/lib/libonnxruntime.so")
+  target_include_directories(${EXE_TARGET} PRIVATE "${ONNXRUNTIME_INCLUDE_DIR}")
+  target_link_libraries(${EXE_TARGET} "${ONNXRUNTIME_LIBRARY}")
   target_compile_definitions(${EXE_TARGET} PRIVATE ROBOCUP_LOCALIZATION_WITH_ONNX)
-  # libonnxruntime.so.1 런타임 검색 경로 (RPATH)
+  # libonnxruntime.so.1 런타임 검색 경로(RPATH)는 링크한 라이브러리 위치에서 자동으로 얻는다.
   set_target_properties(${EXE_TARGET} PROPERTIES
-    BUILD_RPATH "${ONNXRUNTIME_ROOTDIR}/lib"
-    INSTALL_RPATH "${ONNXRUNTIME_ROOTDIR}/lib")
+    INSTALL_RPATH_USE_LINK_PATH TRUE)
 endif()
 
 install(TARGETS ${EXE_TARGET} DESTINATION lib/${PROJECT_NAME})
