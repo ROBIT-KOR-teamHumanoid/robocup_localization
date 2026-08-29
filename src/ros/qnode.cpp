@@ -539,7 +539,7 @@ void QNode::visionCallback(const vision_interfaces::msg::Robocupvision::SharedPt
       msg->ball_2d_x, msg->ball_2d_y);
   vision_pan_flag_ = msg->flag_pan;
 
-  if (msg->ball_cam_x != 0 || msg->ball_cam_y != 0)
+  if (msg->ball_detected)
   {
     clearManualBall();
   }
@@ -583,8 +583,7 @@ void QNode::visionCallback(const vision_interfaces::msg::Robocupvision::SharedPt
   }
 
   robocup_localization::core::VisionObservation observation;
-  observation.ball_detected =
-      msg->ball_2d_x != 0.0f || msg->ball_2d_y != 0.0f;
+  observation.ball_detected = msg->ball_detected;
   observation.ball_x_mm = msg->ball_2d_x;
   observation.ball_y_mm = msg->ball_2d_y;
   observation.ball_distance_mm = msg->ball_d;
