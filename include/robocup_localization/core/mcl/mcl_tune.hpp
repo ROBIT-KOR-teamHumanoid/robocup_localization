@@ -25,7 +25,7 @@ namespace MclTune
   constexpr double OBS_FILTER_DIST_M           = 4.16;
   constexpr double OBS_FILTER_X_FEATURE_DIST_M = 4.89;
   constexpr double L_DIST_GATE_M               = 1.22;
-  constexpr double MIN_JUMP_M                  = 0.17;
+  constexpr double MIN_JUMP_M                  = 0.30;
   constexpr double MAX_JUMP_M                  = 2.44;
   constexpr double MAX_SPREAD_M                = 1.22;
 

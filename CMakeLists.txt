@@ -98,6 +98,13 @@ add_executable(${EXE_TARGET}
     ${QT_UI_HPP}
   )
 set_target_properties(${EXE_TARGET} PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
+
+# 사용자가 저장한 오도메트리/메모는 install/ 이 아니라 소스 트리에 써야 한다.
+# install/ 은 colcon 이 매 빌드마다 소스에서 다시 복사하는 곳이라 저장해도
+# 다음 빌드에 덮어써진다. 실행 파일은 소스 경로를 알 방법이 없으므로
+# 빌드 시점에 박아 준다.
+target_compile_definitions(${EXE_TARGET} PRIVATE
+    ROBOCUP_LOCALIZATION_SOURCE_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/resources")
 ament_target_dependencies(${EXE_TARGET} rclcpp Boost humanoid_interfaces gamecontroller vision_interfaces OpenCV ament_index_cpp)
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(${EXE_TARGET} Qt5::Widgets Qt5::Core Qt5::Gui Qt5::Network ${OpenCV_LIBRARIES} "${cpp_typesupport_target}")

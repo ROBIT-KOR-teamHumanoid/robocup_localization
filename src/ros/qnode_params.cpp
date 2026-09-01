@@ -59,6 +59,12 @@ void QNode::getParams()
     node->declare_parameter("inference.sign_right", -1.0);
     node->declare_parameter("inference.sign_forward", 1.0);
     node->declare_parameter("inference.yaw_offset_deg", 90.0);
+    node->declare_parameter("inference.pan_yaw_sign", -1.0);
+    node->declare_parameter("kidnap.enable", false);
+    node->declare_parameter("kidnap.disagree_dist_m", 2.0);
+    node->declare_parameter("kidnap.cluster_radius_m", 0.5);
+    node->declare_parameter("kidnap.min_frames", 5);
+    node->declare_parameter("kidnap.cooldown_sec", 3.0);
 
     imu_topic = node->get_parameter("topic.sub_topics.imu").as_string();
     vision_topic = node->get_parameter("topic.sub_topics.vision").as_string();
@@ -121,6 +127,30 @@ void QNode::getParams()
         node->get_parameter("inference.sign_forward").as_double();
     inference_config_.yaw_offset_deg =
         node->get_parameter("inference.yaw_offset_deg").as_double();
+    inference_config_.pan_yaw_sign =
+        node->get_parameter("inference.pan_yaw_sign").as_double();
+
+    robocup_localization::app::KidnapRecoveryConfig kidnap_config;
+    kidnap_config.enable =
+        node->get_parameter("kidnap.enable").as_bool();
+    kidnap_config.disagree_dist_m =
+        node->get_parameter("kidnap.disagree_dist_m").as_double();
+    kidnap_config.cluster_radius_m =
+        node->get_parameter("kidnap.cluster_radius_m").as_double();
+    kidnap_config.min_frames =
+        static_cast<int>(node->get_parameter("kidnap.min_frames").as_int());
+    kidnap_config.cooldown_sec =
+        node->get_parameter("kidnap.cooldown_sec").as_double();
+    kidnap_.configure(kidnap_config);
+
+    if (kidnap_config.enable)
+    {
+        RCLCPP_INFO(
+            node->get_logger(),
+            "[kidnap] on: dist>=%.2fm, %d frames, cluster<=%.2fm, cooldown %.1fs",
+            kidnap_config.disagree_dist_m, kidnap_config.min_frames,
+            kidnap_config.cluster_radius_m, kidnap_config.cooldown_sec);
+    }
 
     // 없는 파일은 알림
     const std::pair<bool, std::string> model_checks[] = {

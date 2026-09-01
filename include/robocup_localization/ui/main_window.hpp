@@ -22,6 +22,7 @@
 #include <QDir>
 #include <QFile>
 #include <ament_index_cpp/get_package_share_directory.hpp>
+#include "robocup_localization/app/user_config_path.hpp"
 #include <vector>
 #include "QIcon"
 #include "robocup_localization/app/localization_command.hpp"
@@ -49,9 +50,11 @@ public:
     memoEdit = new QTextEdit(this);
     memoEdit->setGeometry(30, 30, 371, 271);
 
-    // 저장된 메모 불러오기
-    std::string share = ament_index_cpp::get_package_share_directory("robocup_localization");
-    QString memoPath = QString::fromStdString(share) + "/resources/memo.txt";
+    // 오도메트리 파라미터와 같은 이유로 소스 트리에 둔다 —
+    // 패키지 share 에 쓰면 다음 colcon build 에 덮어써진다.
+    const QString memoPath = QString::fromStdString(
+        robocup_localization::app::resourcePath("memo.txt"));
+
     QFile loadFile(memoPath);
     if (loadFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
       memoEdit->setPlainText(QString::fromUtf8(loadFile.readAll()));
@@ -75,7 +78,7 @@ public:
     labelEdit->setHtml(
         "<html><head><style>p, li { white-space: pre-wrap; }</style></head>"
         "<body style=\" font-family:'Ubuntu'; font-size:11pt;\">"
-        "<p align=\"center\">저장 경로: ~/.robocup_memo.txt</p>"
+        "<p align=\"center\">저장 경로: resources/memo.txt</p>"
         "</body></html>");
   }
 

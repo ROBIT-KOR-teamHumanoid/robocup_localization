@@ -41,7 +41,7 @@ QNode::QNode(int argc, char **argv)
 
   if (robot_feature == "adult")
   {
-    localization_engine_.setObservationFilterDistance(999999.0); // 관측 pre-filter 거리 임계값 false
+    localization_engine_.setObservationFilterDistance(4.0);
   }
 
   initInference();
@@ -71,16 +71,24 @@ QNode::~QNode()
     mcl_running_ = false;
   }
 
-  {
-    std::lock_guard<std::mutex> lock(mcl_mutex_);
-    mcl_running_ = false;
-  }
-
   mcl_cv_.notify_one();
 
   if (mcl_thread_.joinable())
   {
     mcl_thread_.join();
+  }
+
+  // 4. 추론 스레드 종료
+  {
+    std::lock_guard<std::mutex> lock(inference_job_mutex_);
+    inference_running_ = false;
+  }
+
+  inference_cv_.notify_one();
+
+  if (inference_thread_.joinable())
+  {
+    inference_thread_.join();
   }
 }
 
@@ -135,6 +143,7 @@ void QNode::initInference()
   inference_encoder_.setSigns(
       inference_config_.sign_right, inference_config_.sign_forward);
   inference_encoder_.setYawOffsetDeg(inference_config_.yaw_offset_deg);
+  inference_encoder_.setPanYawSign(inference_config_.pan_yaw_sign);
 
   if (!inference_.init(inference_config_))
   {
@@ -153,39 +162,93 @@ void QNode::initInference()
       node->get_logger(), "[inference] mlp=%s reloc=%s",
       localization_config_.inference.mlp ? "on" : "off",
       localization_config_.inference.reloc ? "on" : "off");
+
+  if (localization_config_.inference.mlp || localization_config_.inference.reloc)
+  {
+    startInference();
+  }
 }
 
-void QNode::runInference(
-    const vision_interfaces::msg::Robocupvisionfeature::SharedPtr& msg,
-    double yaw_deg)
+void QNode::startInference()
 {
-  const auto features =
-      robocup_localization::inference::ObservationEncoder::fromMessage(*msg);
-  const auto obs = inference_encoder_.buildObs(features, yaw_deg);
+  {
+    std::lock_guard<std::mutex> lock(inference_job_mutex_);
+    inference_running_ = true;
+    inference_pending_ = false;
+  }
 
+  inference_thread_ = std::thread(&QNode::inferenceProcessing, this);
+}
+
+void QNode::inferenceProcessing()
+{
+  while (true)
+  {
+    InferenceJob job;
+    {
+      std::unique_lock<std::mutex> lock(inference_job_mutex_);
+      inference_cv_.wait(lock, [this]
+      {
+        return inference_pending_ || !inference_running_;
+      });
+
+      if (!inference_running_)
+      {
+        break;
+      }
+
+      job = std::move(inference_job_);
+      inference_job_ = {};
+      inference_pending_ = false;
+    }
+
+    runInference(job);
+  }
+}
+
+void QNode::runInference(const InferenceJob& job)
+{
   robocup_localization::inference::MlpResult mlp;
   robocup_localization::inference::RelocResult reloc;
 
-  // 관측이 학습 조건(feature_min)에 미달하면 추론을 건너뛰고 무효로 둔다.
-  //   메시지 배열 길이가 아니라 **obs 의 valid 슬롯 수**로 판정한다 — 카메라
-  //   게이트(near/far/FOV)를 통과하지 못한 검출은 obs 에 들어가지 않으므로
-  //   메시지에 3개가 있어도 valid 가 0 일 수 있다.
-  const int n_valid = robocup_localization::inference::countValidSlots(obs);
-  if (n_valid < inference_config_.feature_min)
-  {
-    std::lock_guard<std::mutex> lock(inference_mutex_);
-    inference_state_.mlp = {};
-    inference_state_.reloc = {};
-    return;
-  }
+  const auto started = std::chrono::steady_clock::now();
+  bool ran = false;
 
-  if (inference_config_.mlp_enable && inference_.mlpReady())
+  // 왜 건너뛰었는지 남기기 위한 값. 추론이 안 도는데 로그가 하나도 없으면
+  // 어느 게이트에서 막혔는지 알 방법이 없다.
+  int n_msg = 0;
+  int n_valid = 0;
+
+  // 특징점이 아예 없는 프레임이면 인코딩할 것도 없다. 이 판정까지 워커에서
+  // 하는 이유는 순서 때문이다 — 콜백에서 먼저 지워 버리면 아직 돌고 있던
+  // 이전 프레임의 결과가 나중에 덮어써 되살아난다.
+  if (job.has_features && job.msg)
   {
-    mlp = inference_.runMlp(obs);
-  }
-  if (inference_config_.reloc_enable && inference_.relocReady())
-  {
-    reloc = inference_.runReloc(obs);
+    n_msg = static_cast<int>(
+        job.msg->corner_point_vec_x.size() + job.msg->t_point_vec_x.size() +
+        job.msg->cross_point_vec_x.size());
+
+    const auto features =
+        robocup_localization::inference::ObservationEncoder::fromMessage(*job.msg);
+    const auto obs = inference_encoder_.buildObs(features, job.yaw_deg);
+
+    // 관측이 학습 조건(feature_min)에 미달하면 추론을 건너뛰고 무효로 둔다.
+    //   메시지 배열 길이가 아니라 **obs 의 valid 슬롯 수**로 판정한다 — 카메라
+    //   게이트(near/far/FOV)를 통과하지 못한 검출은 obs 에 들어가지 않으므로
+    //   메시지에 3개가 있어도 valid 가 0 일 수 있다.
+    n_valid = robocup_localization::inference::countValidSlots(obs);
+    if (n_valid >= inference_config_.feature_min)
+    {
+      if (inference_config_.mlp_enable && inference_.mlpReady())
+      {
+        mlp = inference_.runMlp(obs);
+      }
+      if (inference_config_.reloc_enable && inference_.relocReady())
+      {
+        reloc = inference_.runReloc(obs);
+      }
+      ran = true;
+    }
   }
 
   {
@@ -193,6 +256,89 @@ void QNode::runInference(
     inference_state_.mlp = mlp;
     inference_state_.reloc = std::move(reloc);
   }
+
+  // ── 납치 판정 ───────────────────────────────────────────
+  // 추론을 건너뛴 프레임도 반드시 여기를 지나야 한다. 그래야 무효 프레임에서
+  // 누적이 끊긴다 — 중간에 return 해 버리면 몇 초 전 프레임과 지금 프레임이
+  // "연속"으로 이어져 버린다.
+  //
+  // 부르는 위치가 추론 스레드인 이유: MLP 추정 하나당 정확히 한 번이어야
+  // 한다. run() 루프에서 부르면 MLP 가 멈춰 있는 동안 같은 값을 반복해 센다.
+  if (kidnap_.config().enable)
+  {
+    float pf_x_px;
+    float pf_y_px;
+    {
+      std::lock_guard<std::mutex> lock(robot0_mutex);
+      pf_x_px = robot0.x;
+      pf_y_px = robot0.y;
+    }
+
+    const auto verdict = kidnap_.update(
+        node->get_clock()->now().seconds(),
+        FieldCoord::toFieldX(pf_x_px), FieldCoord::toFieldY(pf_y_px),
+        mlp.valid, mlp.x_m, mlp.y_m);
+
+    if (verdict.kidnapped)
+    {
+      applyKidnapVerdict(verdict);
+    }
+  }
+
+  if (!ran)
+  {
+    // 어느 단계에서 막혔는지 남긴다. 카메라 게이트(near 0.35m / far 6m /
+    // FOV +-45deg)를 못 넘긴 검출은 obs 에 안 들어가므로, 메시지에 특징점이
+    // 있어도 valid 가 0 일 수 있다 — 그 구분이 여기서 보인다.
+    RCLCPP_WARN_THROTTLE(
+        node->get_logger(), *node->get_clock(), 3000,
+        "[inference] 건너뜀: msg 특징점 %d개 -> 게이트 통과 %d개 "
+        "(feature_min=%d)",
+        n_msg, n_valid, inference_config_.feature_min);
+    return;
+  }
+
+  // 추론이 프레임 속도를 못 따라가면 drop 이 계속 늘어난다. 그때가
+  // 모델을 줄이거나 프레임을 솎아낼 시점이다.
+  const std::chrono::duration<double, std::milli> elapsed =
+      std::chrono::steady_clock::now() - started;
+  unsigned long dropped;
+  {
+    std::lock_guard<std::mutex> lock(inference_job_mutex_);
+    dropped = inference_dropped_;
+  }
+  RCLCPP_INFO_THROTTLE(
+      node->get_logger(), *node->get_clock(), 5000,
+      "[inference] %.2f ms, drop=%lu", elapsed.count(), dropped);
+}
+
+void QNode::applyKidnapVerdict(
+    const robocup_localization::app::KidnapVerdict& verdict)
+{
+  const float x_px = static_cast<float>(FieldCoord::toPixelX(verdict.x_m));
+  const float y_px = static_cast<float>(FieldCoord::toPixelY(verdict.y_m));
+
+  float yaw_deg;
+  float old_x;
+  float old_y;
+  {
+    std::lock_guard<std::mutex> lock(robot0_mutex);
+    old_x = robot0.x;
+    old_y = robot0.y;
+    robot0.x = x_px;
+    robot0.y = y_px;
+    robot0.trail.clear();
+    yaw_deg = robot0.yaw_deg;  // 헤딩은 IMU 가 준다. MLP 는 위치만 낸다.
+  }
+
+  // 자세만 옮기면 파티클이 옛 자리에 남아 다음 correct() 에서 도로 끌어온다.
+  resetParticles(x_px, y_px, yaw_deg, particle_range_);
+
+  RCLCPP_WARN(
+      node->get_logger(),
+      "[kidnap] (%.2f, %.2f) -> (%.2f, %.2f) m  frames=%d spread=%.2fm",
+      FieldCoord::toFieldX(old_x), FieldCoord::toFieldY(old_y),
+      verdict.x_m, verdict.y_m, verdict.frames, verdict.spread_m);
 }
 
 void QNode::previewRobotPosition(float x, float y)
@@ -488,23 +634,24 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
   localization_engine_.submitFeatures(
       std::move(observations), valid_observation, robot0_z);
 
-  // ===== 학습형(ONNX) 추론: vision_feature 프레임과 동기 실행 =====
+  // ===== 학습형(ONNX) 추론: 전용 스레드로 넘긴다 =====
   // MCL 과 독립적으로 돈다 — mcl_active/pan_flag 게이트를 타지 않는다.
-  if (inference_config_.mlp_enable || inference_config_.reloc_enable)
+  // 여기서 직접 돌리면 추론 시간만큼 spin 이 멈추고, 그만큼 MCL 갱신과
+  // /localization 발행이 밀린다. 그래서 프레임만 건네고 바로 빠져나온다.
+  if (localization_config_.inference.mlp || localization_config_.inference.reloc)
   {
-    if (has_features)
     {
-      runInference(msg, robot0_z);
+      std::lock_guard<std::mutex> lock(inference_job_mutex_);
+      if (inference_pending_)
+      {
+        // 아직 이전 프레임을 처리 중이다. 오래된 자세 추정은 쓸모가 없으니
+        // 밀어 두지 않고 최신 프레임으로 덮어쓴다.
+        ++inference_dropped_;
+      }
+      inference_job_ = InferenceJob{msg, robot0_z, has_features};
+      inference_pending_ = true;
     }
-    else
-    {
-      // 메시지에 특징점 배열이 아예 비었으면 buildObs 를 부를 필요도 없다.
-      // (배열에 값이 있어도 카메라 게이트를 못 넘길 수 있으므로, 실제 판정은
-      //  runInference 안에서 obs 의 valid 슬롯 수로 다시 한다.)
-      std::lock_guard<std::mutex> lock(inference_mutex_);
-      inference_state_.mlp = {};
-      inference_state_.reloc = {};
-    }
+    inference_cv_.notify_one();
   }
 
   if (valid_observation)
@@ -606,7 +753,9 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
   bool foot_align;
   {
     std::lock_guard<std::mutex> lock(master_state_mutex_);
-    foot_align = master_state_.master_move2ball_phase == "FOOT_ALIGN";
+    // task_planner 가 접근 페이즈를 MOVE/KICK 두 가지로 줄였다. 예전 FOOT_ALIGN
+    // (공 앞 미세 정렬)에 해당하는 구간이 지금은 KICK 이다.
+    foot_align = master_state_.master_move2ball_phase == "KICK";
   }
 
   double ik_dx;

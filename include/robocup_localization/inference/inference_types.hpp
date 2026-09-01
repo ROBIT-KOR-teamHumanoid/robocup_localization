@@ -92,6 +92,10 @@ struct Features
   std::vector<FeaturePoint> t_shape;
   std::vector<FeaturePoint> cross;
   std::vector<FeaturePoint> goalpost;  // 비전이 좌표를 주지 않음 → 항상 빈 값
+
+  /// 이 프레임의 카메라 pan (rad). refiner 가 point_vec_* 를 body frame 으로
+  /// 되돌릴 때 쓴 값이며, buildObs 가 그 회전을 되돌리는 데 쓴다.
+  double pan_rad = 0.0;
 };
 
 struct InferenceConfig
@@ -120,6 +124,10 @@ struct InferenceConfig
 
   /// (dataset.py 의 imu = [sin(yaw), cos(yaw)], forward = dx*cos+dy*sin).
   double yaw_offset_deg = 90.0;
+
+  /// pan 을 yaw 에 더할 때의 부호. 특징점 회전은 부호가 확정이지만 yaw 쪽은
+  /// 실측 확인이 필요하다 — observation_encoder.cpp 의 buildObs 주석 참조.
+  double pan_yaw_sign = -1.0;
 };
 
 /// MLP 단일프레임 pose 추론 결과 (필드 프레임, 미터).

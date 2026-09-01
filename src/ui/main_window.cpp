@@ -11,6 +11,7 @@
 
 #include "robocup_localization/ui/main_window.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
+#include "robocup_localization/app/user_config_path.hpp"
 
 #include <QMessageBox>
 #include <algorithm>
@@ -311,27 +312,10 @@ void MainWindow::setting()
     float odom_left = current.odom_left;
     float odom_right = current.odom_right;
 
-    const std::string share_dir =
-        ament_index_cpp::get_package_share_directory("robocup_localization");
-    std::string param = "";
-#ifdef ROBIT_HUMANOID_ROBOT_NUMBER_1
-    param = share_dir + "/resources/param/PARAM1.txt";
-#endif
-#ifdef ROBIT_HUMANOID_ROBOT_NUMBER_2
-    param = share_dir + "/resources/param/PARAM2.txt";
-#endif
-#ifdef ROBIT_HUMANOID_ROBOT_NUMBER_3
-    param = share_dir + "/resources/param/PARAM3.txt";
-#endif
-#ifdef ROBIT_HUMANOID_ROBOT_NUMBER_4
-    param = share_dir + "/resources/param/PARAM4.txt";
-#endif
-#ifdef ROBIT_HUMANOID_ROBOT_NUMBER_5
-    param = share_dir + "/resources/param/PARAM5.txt";
-#endif
-#ifdef ROBIT_HUMANOID_ROBOT_NUMBER_6
-    param = share_dir + "/resources/param/PARAM6.txt";
-#endif
+    const std::string rel = robocup_localization::app::odomParamRelativePath();
+    const std::string param =
+        rel.empty() ? std::string()
+                    : robocup_localization::app::resourcePath(rel);
 
     ifstream input(param);
     if (input.is_open())
@@ -341,11 +325,12 @@ void MainWindow::setting()
       input >> odom_backward;
       input >> odom_left;
       input >> odom_right;
-      printf("[LocalNode] Odom Load\n");
+      printf("[LocalNode] Odom Load: %s\n", param.c_str());
     }
     else
     {
-      printf("[LocalNode] No Odom Data\n");
+      printf("[LocalNode] No Odom Data: %s\n",
+             param.empty() ? "로봇 번호 미정의(robot_config.h)" : param.c_str());
     }
 
     ui->particle_range_value->setValue(particle_range);
@@ -854,26 +839,13 @@ void MainWindow::on_btn_objects_save_clicked()
   // POST CONDITION : param file
   // purpose : 현재 적용되어있는 오도메트리 값을 입출력스트림을 통해 저장
 
-  std::string share_dir = ament_index_cpp::get_package_share_directory("robocup_localization");
-  std::string param = "";
-#ifdef ROBIT_HUMANOID_ROBOT_NUMBER_1
-  param = share_dir + "/resources/param/PARAM1.txt";
-#endif
-#ifdef ROBIT_HUMANOID_ROBOT_NUMBER_2
-  param = share_dir + "/resources/param/PARAM2.txt";
-#endif
-#ifdef ROBIT_HUMANOID_ROBOT_NUMBER_3
-  param = share_dir + "/resources/param/PARAM3.txt";
-#endif
-#ifdef ROBIT_HUMANOID_ROBOT_NUMBER_4
-  param = share_dir + "/resources/param/PARAM4.txt";
-#endif
-#ifdef ROBIT_HUMANOID_ROBOT_NUMBER_5
-  param = share_dir + "/resources/param/PARAM5.txt";
-#endif
-#ifdef ROBIT_HUMANOID_ROBOT_NUMBER_6
-  param = share_dir + "/resources/param/PARAM6.txt";
-#endif
+  // install/ 이 아니라 소스 트리에 쓴다. install/ 은 colcon 이 매 빌드마다
+  // 소스에서 다시 복사하는 곳이라 저장해도 곧 덮어써진다.
+  const std::string rel = robocup_localization::app::odomParamRelativePath();
+  const std::string param =
+      rel.empty() ? std::string()
+                  : robocup_localization::app::resourcePath(rel);
+
   ofstream Last_Index_Num_OUT(param);
   if (Last_Index_Num_OUT.is_open())
   {
@@ -882,11 +854,12 @@ void MainWindow::on_btn_objects_save_clicked()
     Last_Index_Num_OUT << ui->odom_bx_value->value() << endl;
     Last_Index_Num_OUT << ui->odom_ly_value->value() << endl;
     Last_Index_Num_OUT << ui->odom_ry_value->value() << endl;
-    printf("[LocalNode] Odom Param set\n");
+    printf("[LocalNode] Odom Param saved: %s\n", param.c_str());
   }
   else
   {
-    printf("[LocalNode] No Odom Parameter\n");
+    printf("[LocalNode] Odom Param save FAILED: %s\n",
+           param.empty() ? "로봇 번호 미정의(robot_config.h)" : param.c_str());
   }
   Last_Index_Num_OUT.close();
 }

@@ -27,6 +27,7 @@
 #include "robocup_localization/app/localization_config.hpp"
 #include "robocup_localization/app/localization_engine.hpp"
 #include "robocup_localization/app/localization_snapshot.hpp"
+#include "robocup_localization/app/kidnap_recovery.hpp"
 #include "robocup_localization/inference/observation_encoder.hpp"
 #include "robocup_localization/inference/onnx_localizer.hpp"
 
@@ -85,19 +86,42 @@ private:
   mutable std::mutex game_state_mutex_;
   int vision_pan_flag_ = 0;
 
-  // 학습형(ONNX) 추론. vision_feature 프레임과 동기 실행되고, 결과는
-  // inference_state_ 에 모았다가 localizationSnapshot() 으로만 밖에 나간다.
+  // 학습형(ONNX) 추론. vision_feature 콜백이 프레임을 넘겨 주면 전용 스레드가
+  // 돌린다 (mcl_thread_ 와 같은 구조). 결과는 inference_state_ 에 모았다가
+  // localizationSnapshot() 으로만 밖에 나간다.
   robocup_localization::inference::InferenceConfig inference_config_;
   robocup_localization::inference::ObservationEncoder inference_encoder_;
   robocup_localization::inference::OnnxLocalizer inference_;
-  mutable std::mutex inference_mutex_;
+  mutable std::mutex inference_mutex_;   // inference_state_ (결과) 보호
   robocup_localization::app::InferenceStateSnapshot inference_state_;
 
+  // 추론 스레드에 넘길 한 프레임. 슬롯이 하나뿐이라 새 프레임이 오면 아직
+  // 처리 못 한 이전 프레임을 덮어쓴다 — 오래된 자세 추정은 쓸모가 없으므로
+  // 밀리는 것보다 버리는 편이 낫다.
+  struct InferenceJob
+  {
+    vision_interfaces::msg::Robocupvisionfeature::SharedPtr msg;
+    double yaw_deg = 0.0;
+    bool has_features = false;
+  };
+
   void initInference();
-  void runInference(
-      const vision_interfaces::msg::Robocupvisionfeature::SharedPtr& msg,
-      double yaw_deg);
+  void startInference();
+  void inferenceProcessing();
+  void runInference(const InferenceJob& job);
   std::string resolveModelPath(const std::string& path) const;
+
+  // 납치 판정. 추론 스레드에서만 만지므로 별도 락이 필요 없다.
+  robocup_localization::app::KidnapRecovery kidnap_;
+  void applyKidnapVerdict(const robocup_localization::app::KidnapVerdict& verdict);
+
+  std::thread inference_thread_;
+  std::condition_variable inference_cv_;
+  std::mutex inference_job_mutex_;   // 아래 4개 보호
+  InferenceJob inference_job_;
+  bool inference_pending_ = false;
+  bool inference_running_ = false;
+  unsigned long inference_dropped_ = 0;
 
   void imuCallback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg);
   void visionCallback(const vision_interfaces::msg::Robocupvision::SharedPtr msg);

@@ -31,12 +31,20 @@ public:
   /// imu 슬롯을 만들 때 yaw_deg 에 더할 각도(도). InferenceConfig 참조.
   void setYawOffsetDeg(double yaw_offset_deg);
 
+  /// pan 을 yaw 에 더할 때의 부호. 특징점 회전은 refiner 공식의 정확한
+  /// 역변환이라 부호가 확정이지만, yaw 쪽은 yaw_deg 가 CCW+ 인지 CW+ 인지에
+  /// 달려 있어 실측으로 확인해야 한다. 기본값 -1.0 의 근거는 .cpp 참조.
+  void setPanYawSign(double pan_yaw_sign);
+
   /// 메시지 한 프레임에서 타입별 특징점을 뽑는다.
   /// goalpost 는 비전이 좌표를 주지 않아 비워둔다 → obs 슬롯이 valid=0 으로 채워진다.
   static Features fromMessage(
       const vision_interfaces::msg::Robocupvisionfeature& msg);
 
   /// 학습의 visible_mask() 와 동일한 게이트를 적용해 obs[44] 를 조립한다.
+  ///
+  /// features.pan_rad 가 0 이 아니면 카메라 pan 을 보정한다 — 자세한 규약은
+  /// .cpp 의 buildObs 주석 참조. 0 이면 보정 전과 완전히 같게 동작한다.
   Observation buildObs(const Features& features, double yaw_deg) const;
 
   static constexpr double CAM_H_FOV_DEG = 90.0;
@@ -48,6 +56,7 @@ private:
   double sign_right_ = -1.0;
   double sign_forward_ = 1.0;
   double yaw_offset_deg_ = 90.0;
+  double pan_yaw_sign_ = -1.0;
 };
 
 }  // namespace robocup_localization::inference
