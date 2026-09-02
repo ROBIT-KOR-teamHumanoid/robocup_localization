@@ -41,6 +41,18 @@ public:
   static Features fromMessage(
       const vision_interfaces::msg::Robocupvisionfeature& msg);
 
+  /// 코너 아크가 만드는 T 접합을 features.t_shape 에서 제거한다. 제거한 개수 반환.
+  ///
+  /// 학습셋 생성기(field_constants.py 의 build_features)에는 이 8개가 없다.
+  /// 게다가 코너 근처에서는 아크 T 가 가장 가까운 T 라 fillSlots 의 거리순
+  /// 정렬에서 앞 슬롯을 차지하고, 진짜 골라인 T 를 학습이 거의 안 된 뒤 슬롯
+  /// (t slot 2 발화율 0.07%)으로 밀어내거나 FILL_T 밖으로 잘라낸다.
+  ///
+  /// 판정은 body frame 기하만 쓴다 — pose 추정이 필요 없어서 로봇이 길을 잃은
+  /// 상태(= clsreg 재위치추정이 도는 바로 그 순간)에도 동작한다.
+  /// L_ARC == 0 인 필드에서는 아무것도 하지 않는다.
+  static int dropCornerArcT(Features& features);
+
   /// 학습의 visible_mask() 와 동일한 게이트를 적용해 obs[44] 를 조립한다.
   ///
   /// features.pan_rad 가 0 이 아니면 카메라 pan 을 보정한다 — 자세한 규약은

@@ -45,8 +45,6 @@ void QNode::getParams()
     node->declare_parameter(
         "particle_filter.particle_nums", default_particle_count);
     node->declare_parameter("particle_filter.noise_enable", true);
-    node->declare_parameter(
-        "particle_filter.foot_align_odom_scale", 0.3);
     node->declare_parameter("rate.ros_spin_hz", 20.0);
     node->declare_parameter("rate.ui_data_hz", 20.0);
     node->declare_parameter("rate.ui_render_hz", 5.0);
@@ -89,10 +87,6 @@ void QNode::getParams()
                                    "particle_filter.noise_enable")
                                .as_bool();
     localization_engine_.configureParticleFilter(config);
-
-    foot_align_odom_scale_ = node->get_parameter(
-                                     "particle_filter.foot_align_odom_scale")
-                                 .as_double();
 
     auto &loop_rate = localization_config_.loop_rate;
     loop_rate.ros_spin_hz =

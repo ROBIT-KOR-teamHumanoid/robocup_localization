@@ -19,7 +19,6 @@
       weight_update_threshold: 5.0
       particle_nums: 8000
       noise_enable: false
-      foot_align_odom_scale: 0.65
 
     rate:
       ros_spin_hz: 20.0

@@ -181,6 +181,18 @@ namespace FieldCoord
   constexpr FeaturePoint T08 = {A / 2, F / 2, T_SHAPE, true};
   constexpr FeaturePoint T09 = {A / 2, -F / 2, T_SHAPE, true};
 
+  constexpr bool HAS_CORNER_ARC = L_ARC > 0.0;
+  // 터치라인 쪽 끝점 4개
+  constexpr FeaturePoint T10 = {-A / 2 + L_ARC, B / 2, T_SHAPE, HAS_CORNER_ARC};
+  constexpr FeaturePoint T11 = {A / 2 - L_ARC, B / 2, T_SHAPE, HAS_CORNER_ARC};
+  constexpr FeaturePoint T12 = {-A / 2 + L_ARC, -B / 2, T_SHAPE, HAS_CORNER_ARC};
+  constexpr FeaturePoint T13 = {A / 2 - L_ARC, -B / 2, T_SHAPE, HAS_CORNER_ARC};
+  // 골라인 쪽 끝점 4개
+  constexpr FeaturePoint T14 = {-A / 2, B / 2 - L_ARC, T_SHAPE, HAS_CORNER_ARC};
+  constexpr FeaturePoint T15 = {A / 2, B / 2 - L_ARC, T_SHAPE, HAS_CORNER_ARC};
+  constexpr FeaturePoint T16 = {-A / 2, -B / 2 + L_ARC, T_SHAPE, HAS_CORNER_ARC};
+  constexpr FeaturePoint T17 = {A / 2, -B / 2 + L_ARC, T_SHAPE, HAS_CORNER_ARC};
+
   // X-shape - 2개
   // 하프라인 × 센터 서클 상단 교차점
   constexpr FeaturePoint X01 = {0, J / 2, X_SHAPE, true};
@@ -193,19 +205,21 @@ namespace FieldCoord
 
   constexpr FeaturePoint Left_Goalpost = {-A / 2, 0, GOAL_POST, true};
   constexpr FeaturePoint Right_Goalpost = {A / 2, 0, GOAL_POST, true};
-  // 전체 특징점 배열 - 28개
-  constexpr FeaturePoint ALL_POINTS[28] = {
+  // 전체 특징점 배열 - 36개
+  constexpr FeaturePoint ALL_POINTS[36] = {
       // ㄱ-shape (index 0~11)
       L00, L01, L02, L03, L04, L05, L06, L07, L08, L09, L10, L11,
       // T-shape  (index 12~21)
       T00, T01, T02, T03, T04, T05, T06, T07, T08, T09,
-      // X-shape  (index 22~23)
+      // 코너 아크 T-shape (index 22~29, L_ARC == 0 이면 비활성)
+      T10, T11, T12, T13, T14, T15, T16, T17,
+      // X-shape  (index 30~31)
       X01, X02,
-      // 페널티 마크 (index 24~25)
+      // 페널티 마크 (index 32~33)
       PM0, PM1,
-      // 골대 (index 26~27)
+      // 골대 (index 34~35)
       Left_Goalpost, Right_Goalpost};
 
-  constexpr int FEATURE_POINT_COUNT = 28;
+  constexpr int FEATURE_POINT_COUNT = 36;
 
 } // namespace FieldCoord

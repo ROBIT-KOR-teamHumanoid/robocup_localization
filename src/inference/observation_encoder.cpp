@@ -8,11 +8,15 @@
 #include <algorithm>
 #include <cmath>
 
+#include "field_coordinate/field_coordinate.hpp"
+
 namespace robocup_localization::inference
 {
 
 namespace
 {
+constexpr double ARC_RADIUS_TOL_M = 0.35;
+constexpr double ARC_PERP_COS_MAX = 0.34;  // |cos| <= 0.34 → 70~110도
 
 /// 병렬 배열 두 개를 (x, y) 쌍 목록으로. 길이가 다르면 짧은 쪽에 맞춘다.
 std::vector<FeaturePoint> pack(
@@ -102,6 +106,75 @@ Features ObservationEncoder::fromMessage(
     features.goalpost.push_back({msg.goal_post_x, msg.goal_post_y});
   }
   return features;
+}
+
+int ObservationEncoder::dropCornerArcT(Features& features)
+{
+  if (!FieldCoord::HAS_CORNER_ARC)
+  {
+    return 0;
+  }
+  // 쌍을 요구하므로 T 가 2개 미만이면 볼 것도 없다.
+  if (features.corner.empty() || features.t_shape.size() < 2)
+  {
+    return 0;
+  }
+
+  const std::size_t t_count = features.t_shape.size();
+  std::vector<char> is_arc(t_count, 0);
+
+  // 거리/각도는 회전 불변이라 refiner 의 de-pan 여부와 무관하다 — mm 원본 그대로 쓴다.
+  for (const auto& corner : features.corner)
+  {
+    std::vector<std::size_t> candidate;
+    std::vector<double> unit_x;
+    std::vector<double> unit_y;
+
+    for (std::size_t i = 0; i < t_count; ++i)
+    {
+      const double dx_m = (features.t_shape[i].vx_mm - corner.vx_mm) / 1000.0;
+      const double dy_m = (features.t_shape[i].vy_mm - corner.vy_mm) / 1000.0;
+      const double dist_m = std::hypot(dx_m, dy_m);
+      if (dist_m < 1e-6)
+      {
+        continue;
+      }
+      if (std::fabs(dist_m - FieldCoord::L_ARC) > ARC_RADIUS_TOL_M)
+      {
+        continue;
+      }
+      candidate.push_back(i);
+      unit_x.push_back(dx_m / dist_m);
+      unit_y.push_back(dy_m / dist_m);
+    }
+
+    for (std::size_t a = 0; a + 1 < candidate.size(); ++a)
+    {
+      for (std::size_t b = a + 1; b < candidate.size(); ++b)
+      {
+        const double cos_ab = unit_x[a] * unit_x[b] + unit_y[a] * unit_y[b];
+        if (std::fabs(cos_ab) <= ARC_PERP_COS_MAX)
+        {
+          is_arc[candidate[a]] = 1;
+          is_arc[candidate[b]] = 1;
+        }
+      }
+    }
+  }
+
+  std::vector<FeaturePoint> kept;
+  kept.reserve(t_count);
+  for (std::size_t i = 0; i < t_count; ++i)
+  {
+    if (!is_arc[i])
+    {
+      kept.push_back(features.t_shape[i]);
+    }
+  }
+
+  const int dropped = static_cast<int>(t_count - kept.size());
+  features.t_shape = std::move(kept);
+  return dropped;
 }
 
 Observation ObservationEncoder::buildObs(

@@ -73,7 +73,6 @@ private:
   std::string udp_topic;
   std::string master_topic;
   std::string local_pub_topic;
-  double foot_align_odom_scale_ = 0.3;
 
   robocup_localization::app::LocalizationEngine localization_engine_;
   robocup_localization::app::LocalizationConfig localization_config_;

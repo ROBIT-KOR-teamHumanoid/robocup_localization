@@ -31,7 +31,7 @@ QNode::QNode(int argc, char **argv)
 
   imu_sub_ = node->create_subscription<humanoid_interfaces::msg::ImuMsg>(imu_topic, rclcpp::QoS(rclcpp::KeepLast(1)).reliable().best_effort(), std::bind(&QNode::imuCallback, this, std::placeholders::_1));
   vision_sub_ = node->create_subscription<vision_interfaces::msg::Robocupvision>(vision_topic, 1, std::bind(&QNode::visionCallback, this, std::placeholders::_1));
-  vision_feature_sub_ = node->create_subscription<vision_interfaces::msg::Robocupvisionfeature>(vision_feature_topic, 4, std::bind(&QNode::visionFeatureCallback, this, std::placeholders::_1));
+  vision_feature_sub_ = node->create_subscription<vision_interfaces::msg::Robocupvisionfeature>(vision_feature_topic, 1, std::bind(&QNode::visionFeatureCallback, this, std::placeholders::_1));
   ik_sub_ = node->create_subscription<humanoid_interfaces::msg::IkCoordMsg>(ik_topic, 1, std::bind(&QNode::ikCallback, this, std::placeholders::_1));
   game_control_sub_ = node->create_subscription<gamecontroller::msg::Gamecontroldata>(game_control_topic, 5, std::bind(&QNode::gameControlCallback, this, std::placeholders::_1));
   udp_sub_ = node->create_subscription<humanoid_interfaces::msg::Udp2master>(udp_topic, 5, std::bind(&QNode::udpCallback, this, std::placeholders::_1));
@@ -218,6 +218,7 @@ void QNode::runInference(const InferenceJob& job)
   // 어느 게이트에서 막혔는지 알 방법이 없다.
   int n_msg = 0;
   int n_valid = 0;
+  int n_arc_dropped = 0;
 
   // 특징점이 아예 없는 프레임이면 인코딩할 것도 없다. 이 판정까지 워커에서
   // 하는 이유는 순서 때문이다 — 콜백에서 먼저 지워 버리면 아직 돌고 있던
@@ -228,8 +229,15 @@ void QNode::runInference(const InferenceJob& job)
         job.msg->corner_point_vec_x.size() + job.msg->t_point_vec_x.size() +
         job.msg->cross_point_vec_x.size());
 
-    const auto features =
+    auto features =
         robocup_localization::inference::ObservationEncoder::fromMessage(*job.msg);
+
+    // 코너 아크 T 는 MCL 지도에는 있지만(FieldCoord::T10~T17) 학습셋에는 없다.
+    // MLP/clsreg 에는 넣지 않는다 — 자세한 이유는 dropCornerArcT 주석 참조.
+    n_arc_dropped =
+        robocup_localization::inference::ObservationEncoder::dropCornerArcT(
+            features);
+
     const auto obs = inference_encoder_.buildObs(features, job.yaw_deg);
 
     // 관측이 학습 조건(feature_min)에 미달하면 추론을 건너뛰고 무효로 둔다.
@@ -292,9 +300,9 @@ void QNode::runInference(const InferenceJob& job)
     // 있어도 valid 가 0 일 수 있다 — 그 구분이 여기서 보인다.
     RCLCPP_WARN_THROTTLE(
         node->get_logger(), *node->get_clock(), 3000,
-        "[inference] 건너뜀: msg 특징점 %d개 -> 게이트 통과 %d개 "
-        "(feature_min=%d)",
-        n_msg, n_valid, inference_config_.feature_min);
+        "[inference] 건너뜀: msg 특징점 %d개 -> 아크T 제외 %d개 "
+        "-> 게이트 통과 %d개 (feature_min=%d)",
+        n_msg, n_arc_dropped, n_valid, inference_config_.feature_min);
     return;
   }
 
@@ -750,14 +758,6 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
   const double ik_Xmoved = msg->x;
   const double ik_Ymoved = msg->y;
 
-  bool foot_align;
-  {
-    std::lock_guard<std::mutex> lock(master_state_mutex_);
-    // task_planner 가 접근 페이즈를 MOVE/KICK 두 가지로 줄였다. 예전 FOOT_ALIGN
-    // (공 앞 미세 정렬)에 해당하는 구간이 지금은 KICK 이다.
-    foot_align = master_state_.master_move2ball_phase == "KICK";
-  }
-
   double ik_dx;
   double ik_dy;
   {
@@ -771,12 +771,6 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
     // yaw 회전 + odom 스케일이 적용된 픽셀 델타
     ik_dx = robot0.x - ik_prev_x;
     ik_dy = robot0.y - ik_prev_y;
-
-    if (foot_align)
-    {
-      ik_dx *= foot_align_odom_scale_;
-      ik_dy *= foot_align_odom_scale_;
-    }
   }
 
   // 로봇 오도메트리에서 계산한 이동량만 ParticleFilter에 전달한다.
