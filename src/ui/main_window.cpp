@@ -3,7 +3,7 @@
  *
  * @brief Implementation for the qt gui.
  *
- * @date August 2024
+ * @date August 2026
  **/
 /*****************************************************************************
 ** Includes
@@ -926,60 +926,19 @@ void MainWindow::on_btn_set_auto_clicked()
   // PRE CONDITION : UI
   // POST CONDITION : qnode->robot0.N, qnode->master_target_x
   // purpose : get in시 위치 자동 매크로
+  //
+  // 위치는 robocup_task_planner 의 state_pose.yaml 에서 온다 (런치가 이 노드의
+  // initial_pose 파라미터로 넘긴다). 예전에는 여기에 로봇별·진영별 좌표를 여덟
+  // 벌 적어 두었는데, 심판이 로봇을 놓는 자리는 하나뿐이라 추정기와 판단기가
+  // 서로 다른 값을 들고 있을 이유가 없다.
   using namespace FieldCoord;
 
-  float x = 0, y = 0;
-  if (localization_snapshot_.game.mySide)
-  {
-    if (localization_snapshot_.game.robotNum == 1)
-    {
+  const auto pose = localization_config_.initial_pose.forSide(
+      localization_snapshot_.game.robotNum,
+      localization_snapshot_.game.mySide);
 
-      x = toPixelX(3.5);
-      y = toPixelY(-B / 2);
-    }
-    else if (localization_snapshot_.game.robotNum == 2)
-    {
-
-      x = toPixelX(0.8);
-      y = toPixelY(-B / 2);
-    }
-    else if (localization_snapshot_.game.robotNum == 3)
-    {
-      x = toPixelX(2.5);
-      y = toPixelY(B / 2);
-    }
-    else if (localization_snapshot_.game.robotNum == 4)
-    {
-      x = toPixelX(0.8);
-      y = toPixelY(B / 2);
-    }
-  }
-  else
-  {
-    if (localization_snapshot_.game.robotNum == 1)
-    {
-
-      x = toPixelX(-3.5);
-      y = toPixelY(B / 2);
-    }
-    else if (localization_snapshot_.game.robotNum == 2)
-    {
-      x = toPixelX(-0.8);
-      y = toPixelY(B / 2);
-    }
-    else if (localization_snapshot_.game.robotNum == 3)
-    {
-
-      x = toPixelX(-2.5);
-      y = toPixelY(-B / 2);
-    }
-    else if (localization_snapshot_.game.robotNum == 4)
-    {
-      x = toPixelX(-0.8);
-      y = toPixelY(-B / 2);
-    }
-  }
-  setRobotPos(commands_, x, y, particle_range);
+  setRobotPos(
+      commands_, toPixelX(pose.x), toPixelY(pose.y), particle_range);
 }
 void MainWindow::on_btn_ball_set_clicked()
 {

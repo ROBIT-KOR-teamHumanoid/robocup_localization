@@ -632,8 +632,8 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
   bool mcl_active;
   {
     std::lock_guard<std::mutex> lock(game_state_mutex_);
-    mcl_active = true;//game_state_.state == 3 ||
-        // (game_state_.state == 1 && game_state_.ready_count >= 2);
+    mcl_active =
+        game_state_.state != robocup_localization::app::STATE_INITIAL;
   }
   const bool has_features = !observations.empty();
   const bool valid_observation =

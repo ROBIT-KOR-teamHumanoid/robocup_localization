@@ -37,13 +37,25 @@ struct MasterStateSnapshot
   std::string master_move2ball_phase;
 };
 
+// GameController 가 보내는 주 상태 코드. gamecontroller 의 Gamecontroldata
+// 와 robocup_task_planner 의 core/world/game_state.py 가 쓰는 값과 같다.
+constexpr int STATE_INITIAL = 0;
+constexpr int STATE_READY = 1;
+constexpr int STATE_SET = 2;
+constexpr int STATE_PLAYING = 3;
+constexpr int STATE_FINISHED = 4;
+
+// 진영. gamecontroller/main_window.hpp 의 `#define LEFT 0` 과 같다.
+constexpr int SIDE_LEFT = 0;
+constexpr int SIDE_RIGHT = 1;
+
 struct GameStateSnapshot
 {
-  int mySide = 1;
+  int mySide = SIDE_RIGHT;
   int penalty = 0;
   int position = 0;
   int robotNum = 0;
-  int state = 0;
+  int state = STATE_INITIAL;
   int ready_count = 0;
 };
 

@@ -146,6 +146,27 @@ void QNode::getParams()
             kidnap_config.cluster_radius_m, kidnap_config.cooldown_sec);
     }
 
+    // INITIAL 배치. robocup_task_planner 의 state_pose.yaml 과 같은 값을
+    // 써야 한다 — 심판이 로봇을 놓는 자리는 하나뿐이고, 추정기와 판단기가
+    // 서로 다른 자리를 알고 있으면 READY 로 넘어갈 때 어긋난다. 런치가 그
+    // yaml 을 읽어 여기로 넘긴다. yaml 은 왼쪽 진영만 적고, 오른쪽은
+    // InitialPoseConfig::forSide 가 180도 돌려 만든다.
+    auto &initial_pose = localization_config_.initial_pose;
+    for (int i = 0; i < robocup_localization::app::InitialPoseConfig::ROBOT_COUNT; ++i)
+    {
+        const std::string prefix =
+            "initial_pose.robot" + std::to_string(i + 1) + ".";
+
+        node->declare_parameter(prefix + "x", 0.0);
+        node->declare_parameter(prefix + "y", 0.0);
+        node->declare_parameter(prefix + "yaw_deg", 0.0);
+
+        initial_pose.left[i].x = node->get_parameter(prefix + "x").as_double();
+        initial_pose.left[i].y = node->get_parameter(prefix + "y").as_double();
+        initial_pose.left[i].yaw_deg =
+            node->get_parameter(prefix + "yaw_deg").as_double();
+    }
+
     // 없는 파일은 알림
     const std::pair<bool, std::string> model_checks[] = {
         {inference_config_.mlp_enable, inference_config_.mlp_model_path},
