@@ -18,4 +18,4 @@ namespace robocup_localization::core
             double noise_stddev);
     };
 
-} // namespace robocup_localization::core
+}

@@ -2,6 +2,7 @@
 #define robocup_localization_QNODE_HPP_
 
 #ifndef Q_MOC_RUN
+#include <atomic>
 #include <rclcpp/rclcpp.hpp>
 #endif
 #include <QThread>
@@ -17,12 +18,14 @@
 #include "humanoid_interfaces/msg/ik_coord_msg.hpp"
 
 #include "robocup_localization/msg/robocup_localization.hpp"
+#include "geometry_msgs/msg/point_stamped.hpp"
 #include "gamecontroller/msg/gamecontroldata.hpp"
 #include "humanoid_interfaces/msg/udp2master.hpp"
 #include "humanoid_interfaces/msg/master2localization.hpp"
 
 #include "robocup_localization/core/mcl/robot_odom_model.hpp"
 #include "robocup_localization/core/types/obstacle.hpp"
+#include "robocup_localization/core/yaw_history.hpp"
 #include "robocup_localization/app/localization_command.hpp"
 #include "robocup_localization/app/localization_config.hpp"
 #include "robocup_localization/app/localization_engine.hpp"
@@ -33,7 +36,6 @@
 
 #define DEG2RAD (M_PI / 180)
 
-// ===== Subscribe =====
 class QNode : public QThread,
               public robocup_localization::app::LocalizationCommand,
               public robocup_localization::app::LocalizationSnapshotSource
@@ -63,8 +65,8 @@ protected:
 private:
   std::shared_ptr<rclcpp::Node> node;
   rclcpp::Publisher<robocup_localization::msg::RobocupLocalization>::SharedPtr localization_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr mlp_pub_;
 
-  std::string robot_feature;
   std::string imu_topic;
   std::string vision_topic;
   std::string vision_feature_topic;
@@ -79,28 +81,28 @@ private:
   float particle_range_ = 0.0f;
   ROBOT robot0;
   mutable std::mutex robot0_mutex;
+  // Guarded by robot0_mutex, like robot0.yaw_deg.
+  robocup_localization::core::YawHistory yaw_history_;
+  bool latency_compensation_ = true;
+  std::int64_t max_feature_age_ns_ = 500000000LL;
   robocup_localization::app::MasterStateSnapshot master_state_;
   robocup_localization::app::GameStateSnapshot game_state_;
   mutable std::mutex master_state_mutex_;
   mutable std::mutex game_state_mutex_;
   int vision_pan_flag_ = 0;
+  std::atomic<double> vision_pan_rad_{0.0};
 
-  // 학습형(ONNX) 추론. vision_feature 콜백이 프레임을 넘겨 주면 전용 스레드가
-  // 돌린다 (mcl_thread_ 와 같은 구조). 결과는 inference_state_ 에 모았다가
-  // localizationSnapshot() 으로만 밖에 나간다.
   robocup_localization::inference::InferenceConfig inference_config_;
   robocup_localization::inference::ObservationEncoder inference_encoder_;
   robocup_localization::inference::OnnxLocalizer inference_;
-  mutable std::mutex inference_mutex_;   // inference_state_ (결과) 보호
+  mutable std::mutex inference_mutex_;  // guards inference_state_
   robocup_localization::app::InferenceStateSnapshot inference_state_;
 
-  // 추론 스레드에 넘길 한 프레임. 슬롯이 하나뿐이라 새 프레임이 오면 아직
-  // 처리 못 한 이전 프레임을 덮어쓴다 — 오래된 자세 추정은 쓸모가 없으므로
-  // 밀리는 것보다 버리는 편이 낫다.
   struct InferenceJob
   {
     vision_interfaces::msg::Robocupvisionfeature::SharedPtr msg;
     double yaw_deg = 0.0;
+    double pan_rad = 0.0;
     bool has_features = false;
   };
 
@@ -110,19 +112,21 @@ private:
   void runInference(const InferenceJob& job);
   std::string resolveModelPath(const std::string& path) const;
 
-  // 납치 판정. 추론 스레드에서만 만지므로 별도 락이 필요 없다.
+  // Touched only by the inference thread, so no lock.
   robocup_localization::app::KidnapRecovery kidnap_;
   void applyKidnapVerdict(const robocup_localization::app::KidnapVerdict& verdict);
 
   std::thread inference_thread_;
   std::condition_variable inference_cv_;
-  std::mutex inference_job_mutex_;   // 아래 4개 보호
+  std::mutex inference_job_mutex_;  // guards the four members below
   InferenceJob inference_job_;
   bool inference_pending_ = false;
   bool inference_running_ = false;
   unsigned long inference_dropped_ = 0;
 
-  void imuCallback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg);
+  void imuCallback(
+      const humanoid_interfaces::msg::ImuMsg::SharedPtr msg,
+      const rclcpp::MessageInfo& info);
   void visionCallback(const vision_interfaces::msg::Robocupvision::SharedPtr msg);
   void visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfeature::SharedPtr msg);
   void ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg);
@@ -150,7 +154,6 @@ private:
 
   std::vector<double> goal_post_pan_deg_buf_;
 
-  double ik_d_yaw = 0.0; // IMU yaw 변화량 (deg), 파티클 θ 업데이트에 사용
 
   void startMclProcessing();
   void mclProcessing();

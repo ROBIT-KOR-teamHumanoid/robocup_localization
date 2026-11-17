@@ -21,4 +21,4 @@ namespace robocup_localization::app
     virtual void clearParticleFilterVision() = 0;
   };
 
-} // namespace robocup_localization::app
+}

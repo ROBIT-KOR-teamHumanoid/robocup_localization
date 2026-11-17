@@ -16,7 +16,6 @@ namespace robocup_localization::app
         explicit LocalizationEngine(core::WorldModelConfig config = {});
 
         void configureParticleFilter(const core::ParticleFilterConfig &config);
-        void setObservationFilterDistance(double distance_m);
         void setParticleRange(float range);
         void resetParticles(float x, float y, float yaw_deg, float range);
         void clearParticleFilterVision();
@@ -29,6 +28,7 @@ namespace robocup_localization::app
         void setBallObservation(double relative_x_mm, double relative_y_mm);
         void mirrorParticlesY(float map_height);
         void setRobotYSign(int sign);
+        int robotYSign() const;
         void applyParticleMotion(const core::ParticleMotion &motion);
         core::ParticleFilterSnapshot particleFilterSnapshot() const;
 
@@ -56,4 +56,4 @@ namespace robocup_localization::app
         core::ParticleFilter particle_filter_;
     };
 
-} // namespace robocup_localization::app
+}

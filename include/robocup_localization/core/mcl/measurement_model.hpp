@@ -27,27 +27,60 @@ namespace robocup_localization::core
         int robot_y_sign = 0;
     };
 
+    // Per-observation values that depend only on the heading, not on the particle position.
+    struct PreparedObservation
+    {
+        double confidence = 0.0;
+        double distance_m = 0.0;
+        bool l_shape = false;
+        int vec_x = 0;
+        int vec_y = 0;
+        double obs_angle = 0.0;
+        double obs_ball_angle = 0.0;
+        int candidates[FieldCoord::FEATURE_POINT_COUNT] = {};
+        int candidate_count = 0;
+    };
+
+    struct PreparedObservations
+    {
+        float yaw_deg = 0.0f;
+        bool ball_visible = false;
+        int landmark_x[FieldCoord::FEATURE_POINT_COUNT] = {};
+        int landmark_y[FieldCoord::FEATURE_POINT_COUNT] = {};
+        double exp_ball_angle[FieldCoord::FEATURE_POINT_COUNT] = {};
+        std::vector<PreparedObservation> observations;
+    };
+
     class MeasurementModel
     {
     public:
-        /// 파티클 하나에 대한 누적 가중치
-        static double particleWeight(
+        // Confidence-weighted sum of per-observation log-likelihoods (a product of likelihoods).
+        static double logLikelihood(
             const Particle &particle,
             const std::vector<VISION_POINT> &observations,
             const PreFilter &filter,
             const MeasurementContext &context);
 
-        // min_dis 초기값. 가장 가까운 랜드마크를 찾기 전 비교 기준값
+        // Same result as above, split so the heading-only work runs once for many particles.
+        static PreparedObservations prepare(
+            const std::vector<VISION_POINT> &observations,
+            float yaw_deg,
+            const PreFilter &filter,
+            const MeasurementContext &context);
+
+        static double logLikelihood(int pt_x, int pt_y, const PreparedObservations &prepared);
+
         static constexpr double LARGE_DIST = 99999999.0;
 
-        // normal 방향 분산 계수 (거리 비례). 클수록 normal 오차에 관대해짐.
+        // Sigma grows with distance; perpendicular error is tolerated more than radial error.
         static constexpr double INV_NORM_VAR = 0.1;
 
-        // perp 방향 분산 계수. INV_NORM_VAR보다 크게 설정 → 수직 오차에 더 관대.
         static constexpr double INV_PERP_VAR = 0.2;
 
-        // L_SHAPE 거리 매칭 게이트 (미터). 관측 거리와 실제 거리 차이가 이 값 초과이면 skip.
         static constexpr double L_DIST_GATE_M = MclTune::L_DIST_GATE_M;
+
+        // Floor at 3 sigma (also for unmatched observations) so one bad observation cannot zero a particle.
+        static constexpr double MIN_LOG_LIKELIHOOD = -4.5;
     };
 
-} // namespace robocup_localization::core
+}

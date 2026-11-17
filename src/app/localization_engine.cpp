@@ -17,11 +17,6 @@ void LocalizationEngine::configureParticleFilter(
   particle_filter_.configure(config);
 }
 
-void LocalizationEngine::setObservationFilterDistance(double distance_m)
-{
-  particle_filter_.setObservationFilterDistance(distance_m);
-}
-
 void LocalizationEngine::setParticleRange(float range)
 {
   particle_filter_.setParticleRange(range);
@@ -67,6 +62,11 @@ void LocalizationEngine::mirrorParticlesY(float map_height)
 void LocalizationEngine::setRobotYSign(int sign)
 {
   particle_filter_.setRobotYSign(sign);
+}
+
+int LocalizationEngine::robotYSign() const
+{
+  return particle_filter_.robotYSign();
 }
 
 void LocalizationEngine::applyParticleMotion(
@@ -138,4 +138,4 @@ core::WorldModelSnapshot LocalizationEngine::snapshot() const
   return world_model_.snapshot();
 }
 
-}  // namespace robocup_localization::app
+}

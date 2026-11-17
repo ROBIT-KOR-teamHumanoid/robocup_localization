@@ -15,9 +15,10 @@ namespace robocup_localization::core
   struct ParticleFilterConfig
   {
     std::size_t particle_count = 8000;
-    double weight_update_threshold = 14.0;
+    double min_fit = 0.3;  // best particle's geometric-mean likelihood per observation
     float particle_range = 0.0f;
     bool noise_enabled = true;
+    int threads = 0;  // OpenMP threads for weighting, 0 = all cores
   };
 
   struct ParticleMotion
@@ -26,8 +27,6 @@ namespace robocup_localization::core
     double world_direction_rad = 0.0;
     double translation_stddev = 0.0;
     double direction_stddev = 0.0;
-    double yaw_delta_deg = 0.0;
-    double yaw_stddev = 0.0;
   };
 
   struct ParticleFilterSnapshot
@@ -35,6 +34,8 @@ namespace robocup_localization::core
     std::vector<Particle> particles;
     std::vector<VISION_POINT> vision_points;
     PreFilter filter;
+    std::vector<Particle> scored_particles;
+    std::vector<double> scored_weights;
   };
 
   class ParticleFilter
@@ -44,7 +45,6 @@ namespace robocup_localization::core
 
     void configure(const ParticleFilterConfig &config);
     void setParticleRange(float particle_range);
-    void setObservationFilterDistance(double distance_m);
     void setBallObservation(double relative_x_mm, double relative_y_mm);
     void setRobotYSign(int sign);
     int robotYSign() const;
@@ -67,9 +67,12 @@ namespace robocup_localization::core
 
   private:
     mutable std::mutex mutex_;
+    // Last snapshot, served while correct() holds mutex_ so the UI never stalls on it.
+    mutable std::mutex snapshot_cache_mutex_;
+    mutable ParticleFilterSnapshot snapshot_cache_;
     ParticleFilterConfig config_;
     MclPipeline pipeline_;
     std::vector<Particle> particles_;
   };
 
-} // namespace robocup_localization::core
+}

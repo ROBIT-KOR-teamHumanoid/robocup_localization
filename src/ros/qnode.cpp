@@ -1,15 +1,3 @@
-/**
- * @file /src/qnode.cpp
- *
- * @brief Ros communication central!
- *
- * @date May 2026
- **/
-
-/*****************************************************************************
-** Includes
-*****************************************************************************/
-
 #include "robocup_localization/ros/qnode.hpp"
 #include "field_coordinate/field_coordinate.hpp"
 
@@ -18,9 +6,88 @@
 #include <cmath>
 #include <utility>
 
-/*****************************************************************************
-** QNode
-*****************************************************************************/
+namespace
+{
+
+// Kidnap verification must use this same conversion as the MCL.
+std::vector<VISION_POINT> buildVisionPoints(
+    const vision_interfaces::msg::Robocupvisionfeature& msg,
+    float robot_x, float robot_y, float yaw_deg)
+{
+  std::vector<VISION_POINT> observations;
+  observations.reserve(
+      msg.corner_confidence.size() +
+      msg.t_confidence.size() +
+      msg.cross_confidence.size());
+
+  const double yaw_rad = yaw_deg * M_PI / 180.0;
+  const auto append_features =
+      [&](const auto& confidences,
+          const auto& distances,
+          const auto& raw_x_values,
+          const auto& raw_y_values,
+          const auto& ball_angles,
+          const auto& ball_distances,
+          int feature_type)
+      {
+        const std::size_t count = std::min(
+            {confidences.size(), distances.size(),
+             raw_x_values.size(), raw_y_values.size()});
+        for (std::size_t i = 0; i < count; ++i)
+        {
+          VISION_POINT observation{};
+          observation.CONFIDENCE = confidences[i];
+          observation.DISTANCE = distances[i];
+          observation.RAW_X_MM = raw_x_values[i];
+          observation.RAW_Y_MM = raw_y_values[i];
+          observation.POINT_VEC_X = static_cast<int>(
+              -(raw_x_values[i] / 1000.0 * FieldCoord::PX_PER_M_X *
+                    std::cos(yaw_rad) +
+                raw_y_values[i] / 1000.0 * FieldCoord::PX_PER_M_X *
+                    std::sin(yaw_rad)));
+          observation.POINT_VEC_Y = static_cast<int>(
+              raw_x_values[i] / 1000.0 * FieldCoord::PX_PER_M_Y *
+                  std::sin(yaw_rad) -
+              raw_y_values[i] / 1000.0 * FieldCoord::PX_PER_M_Y *
+                  std::cos(yaw_rad));
+          observation.STD_X = static_cast<int>(robot_x);
+          observation.STD_Y = static_cast<int>(robot_y);
+          observation.FEATURE_TYPE = feature_type;
+          observation.BALL_RELATIVE_ANGLE = 0.0;
+          if (i < ball_angles.size())
+          {
+            observation.BALL_RELATIVE_ANGLE = ball_angles[i];
+          }
+          observation.BALL_FEATURE_DISTANCE = 0.0;
+          if (i < ball_distances.size())
+          {
+            observation.BALL_FEATURE_DISTANCE = ball_distances[i];
+          }
+          observations.push_back(observation);
+        }
+      };
+
+  append_features(
+      msg.corner_confidence, msg.corner_distance,
+      msg.corner_point_vec_x, msg.corner_point_vec_y,
+      msg.corner_ball_relative_angle,
+      msg.corner_ball_feature_distance, 0);
+  append_features(
+      msg.t_confidence, msg.t_distance,
+      msg.t_point_vec_x, msg.t_point_vec_y,
+      msg.t_ball_relative_angle,
+      msg.t_ball_feature_distance, 1);
+  append_features(
+      msg.cross_confidence, msg.cross_distance,
+      msg.cross_point_vec_x, msg.cross_point_vec_y,
+      msg.cross_ball_relative_angle,
+      msg.cross_ball_feature_distance, 2);
+
+  return observations;
+}
+
+}
+
 
 QNode::QNode(int argc, char **argv)
 {
@@ -29,20 +96,26 @@ QNode::QNode(int argc, char **argv)
 
   getParams();
 
-  imu_sub_ = node->create_subscription<humanoid_interfaces::msg::ImuMsg>(imu_topic, rclcpp::QoS(rclcpp::KeepLast(1)).reliable().best_effort(), std::bind(&QNode::imuCallback, this, std::placeholders::_1));
+  // Depth > 1: spin runs at ros_spin_hz, and every sample in between feeds the yaw history.
+  imu_sub_ = node->create_subscription<humanoid_interfaces::msg::ImuMsg>(
+      imu_topic, rclcpp::QoS(rclcpp::KeepLast(10)).best_effort(),
+      [this](const humanoid_interfaces::msg::ImuMsg::SharedPtr msg,
+             const rclcpp::MessageInfo& info)
+      {
+        imuCallback(msg, info);
+      });
   vision_sub_ = node->create_subscription<vision_interfaces::msg::Robocupvision>(vision_topic, 1, std::bind(&QNode::visionCallback, this, std::placeholders::_1));
   vision_feature_sub_ = node->create_subscription<vision_interfaces::msg::Robocupvisionfeature>(vision_feature_topic, 1, std::bind(&QNode::visionFeatureCallback, this, std::placeholders::_1));
-  ik_sub_ = node->create_subscription<humanoid_interfaces::msg::IkCoordMsg>(ik_topic, 1, std::bind(&QNode::ikCallback, this, std::placeholders::_1));
+
+  // Odometry messages are increments, so a dropped message is lost motion: keep a deep queue.(BWS)odometry 메시지 유실 tips를 참고할 것. 
+  ik_sub_ = node->create_subscription<humanoid_interfaces::msg::IkCoordMsg>(ik_topic, 100, std::bind(&QNode::ikCallback, this, std::placeholders::_1));
   game_control_sub_ = node->create_subscription<gamecontroller::msg::Gamecontroldata>(game_control_topic, 5, std::bind(&QNode::gameControlCallback, this, std::placeholders::_1));
   udp_sub_ = node->create_subscription<humanoid_interfaces::msg::Udp2master>(udp_topic, 5, std::bind(&QNode::udpCallback, this, std::placeholders::_1));
   master_sub_ = node->create_subscription<humanoid_interfaces::msg::Master2localization>(master_topic, 5, std::bind(&QNode::masterCallback, this, std::placeholders::_1));
 
   localization_pub_ = node->create_publisher<robocup_localization::msg::RobocupLocalization>(local_pub_topic, 5);
-
-  if (robot_feature == "adult")
-  {
-    localization_engine_.setObservationFilterDistance(4.0);
-  }
+  // Field frame in metres; published only for valid MLP estimates.
+  mlp_pub_ = node->create_publisher<geometry_msgs::msg::PointStamped>(local_pub_topic + "/mlp", 5);
 
   initInference();
 
@@ -53,19 +126,16 @@ QNode::QNode(int argc, char **argv)
 
 QNode::~QNode()
 {
-  // 1. run() 반복문 종료 요청
   if (rclcpp::ok())
   {
     rclcpp::shutdown();
   }
 
-  // 2. QThread가 실제로 종료될 때까지 대기
   if (isRunning())
   {
     wait();
   }
 
-  // 3. MCL 작업 스레드 종료
   {
     std::lock_guard<std::mutex> lock(mcl_mutex_);
     mcl_running_ = false;
@@ -78,7 +148,6 @@ QNode::~QNode()
     mcl_thread_.join();
   }
 
-  // 4. 추론 스레드 종료
   {
     std::lock_guard<std::mutex> lock(inference_job_mutex_);
     inference_running_ = false;
@@ -107,11 +176,13 @@ QNode::localizationSnapshot() const
 
   {
     std::lock_guard<std::mutex> lock(robot0_mutex);
-    snapshot.robot.pose = robot0;  // ROBOT → Pose2D 슬라이싱
+    snapshot.robot.pose = robot0;
     snapshot.robot.odom_forward = robot0.odom_fx;
     snapshot.robot.odom_backward = robot0.odom_bx;
     snapshot.robot.odom_left = robot0.odom_ly;
     snapshot.robot.odom_right = robot0.odom_ry;
+    snapshot.robot.odom_metric =
+        robot0.odom_input == ROBOT::OdometryInput::Metric;
     snapshot.robot.ik_x = robot0.now_ik_param_x;
     snapshot.robot.ik_y = robot0.now_ik_param_y;
     snapshot.robot.trail = robot0.trail;
@@ -140,10 +211,26 @@ void QNode::initInference()
     return;
   }
 
-  inference_encoder_.setSigns(
-      inference_config_.sign_right, inference_config_.sign_forward);
-  inference_encoder_.setYawOffsetDeg(inference_config_.yaw_offset_deg);
-  inference_encoder_.setPanYawSign(inference_config_.pan_yaw_sign);
+  if (inference_config_.mlp_enable)
+  {
+    // An unknown gate means an unknown training condition, so the MLP is disabled.
+    if (robocup_localization::inference::readFeatureMinGate(
+            inference_config_.mlp_model_path, inference_config_.feature_min))
+    {
+      RCLCPP_INFO(
+          node->get_logger(), "[inference] feature_min=%d (%s.json)",
+          inference_config_.feature_min,
+          inference_config_.mlp_model_path.c_str());
+    }
+    else
+    {
+      RCLCPP_ERROR(
+          node->get_logger(),
+          "[inference] %s.json 에서 feature_min_gate 를 읽지 못해 MLP 를 끕니다",
+          inference_config_.mlp_model_path.c_str());
+      inference_config_.mlp_enable = false;
+    }
+  }
 
   if (!inference_.init(inference_config_))
   {
@@ -152,7 +239,6 @@ void QNode::initInference()
         inference_.lastError().c_str());
   }
 
-  // 요청했고 실제로 세션이 올라온 것만 활성으로 본다.
   localization_config_.inference.mlp =
       inference_config_.mlp_enable && inference_.mlpReady();
   localization_config_.inference.reloc =
@@ -214,15 +300,12 @@ void QNode::runInference(const InferenceJob& job)
   const auto started = std::chrono::steady_clock::now();
   bool ran = false;
 
-  // 왜 건너뛰었는지 남기기 위한 값. 추론이 안 도는데 로그가 하나도 없으면
-  // 어느 게이트에서 막혔는지 알 방법이 없다.
   int n_msg = 0;
   int n_valid = 0;
   int n_arc_dropped = 0;
 
-  // 특징점이 아예 없는 프레임이면 인코딩할 것도 없다. 이 판정까지 워커에서
-  // 하는 이유는 순서 때문이다 — 콜백에서 먼저 지워 버리면 아직 돌고 있던
-  // 이전 프레임의 결과가 나중에 덮어써 되살아난다.
+  // Decided in the worker, not the callback: clearing early would let a still-running
+  // older frame overwrite the result later.
   if (job.has_features && job.msg)
   {
     n_msg = static_cast<int>(
@@ -231,19 +314,15 @@ void QNode::runInference(const InferenceJob& job)
 
     auto features =
         robocup_localization::inference::ObservationEncoder::fromMessage(*job.msg);
+    features.pan_rad = job.pan_rad;
 
-    // 코너 아크 T 는 MCL 지도에는 있지만(FieldCoord::T10~T17) 학습셋에는 없다.
-    // MLP/clsreg 에는 넣지 않는다 — 자세한 이유는 dropCornerArcT 주석 참조.
+    // Corner-arc T junctions are in the MCL map but not in the training set.
     n_arc_dropped =
         robocup_localization::inference::ObservationEncoder::dropCornerArcT(
             features);
 
     const auto obs = inference_encoder_.buildObs(features, job.yaw_deg);
 
-    // 관측이 학습 조건(feature_min)에 미달하면 추론을 건너뛰고 무효로 둔다.
-    //   메시지 배열 길이가 아니라 **obs 의 valid 슬롯 수**로 판정한다 — 카메라
-    //   게이트(near/far/FOV)를 통과하지 못한 검출은 obs 에 들어가지 않으므로
-    //   메시지에 3개가 있어도 valid 가 0 일 수 있다.
     n_valid = robocup_localization::inference::countValidSlots(obs);
     if (n_valid >= inference_config_.feature_min)
     {
@@ -265,39 +344,79 @@ void QNode::runInference(const InferenceJob& job)
     inference_state_.reloc = std::move(reloc);
   }
 
-  // ── 납치 판정 ───────────────────────────────────────────
-  // 추론을 건너뛴 프레임도 반드시 여기를 지나야 한다. 그래야 무효 프레임에서
-  // 누적이 끊긴다 — 중간에 return 해 버리면 몇 초 전 프레임과 지금 프레임이
-  // "연속"으로 이어져 버린다.
-  //
-  // 부르는 위치가 추론 스레드인 이유: MLP 추정 하나당 정확히 한 번이어야
-  // 한다. run() 루프에서 부르면 MLP 가 멈춰 있는 동안 같은 값을 반복해 센다.
+  if (mlp.valid)
+  {
+    geometry_msgs::msg::PointStamped mlp_msg;
+    mlp_msg.header.stamp = node->now();
+    mlp_msg.header.frame_id = "field";
+    mlp_msg.point.x = mlp.x_m;
+    mlp_msg.point.y = mlp.y_m;
+    mlp_pub_->publish(mlp_msg);
+  }
+
+  // Skipped frames must reach here too so invalid frames break the streak; runs on the
+  // inference thread so each MLP estimate is counted exactly once.
   if (kidnap_.config().enable)
   {
-    float pf_x_px;
-    float pf_y_px;
+    bool initial_state;
     {
-      std::lock_guard<std::mutex> lock(robot0_mutex);
-      pf_x_px = robot0.x;
-      pf_y_px = robot0.y;
+      std::lock_guard<std::mutex> lock(game_state_mutex_);
+      initial_state =
+          game_state_.state == robocup_localization::app::STATE_INITIAL;
     }
 
-    const auto verdict = kidnap_.update(
-        node->get_clock()->now().seconds(),
-        FieldCoord::toFieldX(pf_x_px), FieldCoord::toFieldY(pf_y_px),
-        mlp.valid, mlp.x_m, mlp.y_m);
-
-    if (verdict.kidnapped)
+    // MCL is paused in INITIAL, so PF-MLP disagreement means nothing.
+    if (initial_state)
     {
-      applyKidnapVerdict(verdict);
+      kidnap_.reset();
+    }
+    else
+    {
+      float pf_x_px;
+      float pf_y_px;
+      {
+        std::lock_guard<std::mutex> lock(robot0_mutex);
+        pf_x_px = robot0.x;
+        pf_y_px = robot0.y;
+      }
+
+      robocup_localization::app::KidnapFrame frame;
+      frame.pf_x_m = FieldCoord::toFieldX(pf_x_px);
+      frame.pf_y_m = FieldCoord::toFieldY(pf_y_px);
+      frame.mlp_valid = mlp.valid;
+      frame.mlp_x_m = mlp.x_m;
+      frame.mlp_y_m = mlp.y_m;
+      frame.yaw_deg = job.yaw_deg;
+      frame.robot_y_sign = localization_engine_.robotYSign();
+      if (mlp.valid && job.msg)
+      {
+        frame.observations = buildVisionPoints(
+            *job.msg, pf_x_px, pf_y_px, static_cast<float>(job.yaw_deg));
+      }
+
+      const auto verdict = kidnap_.update(
+          node->get_clock()->now().seconds(), std::move(frame));
+
+      if (verdict.kidnapped)
+      {
+        applyKidnapVerdict(verdict);
+      }
+      else if (verdict.rejected)
+      {
+        RCLCPP_WARN(
+            node->get_logger(),
+            "[kidnap] 기각: 후보 (%.2f, %.2f) m  점수 %.3f vs 현재 %.3f "
+            "(필요: >= %.3f 이고 >= x%.2f)  frames=%d",
+            verdict.x_m, verdict.y_m,
+            verdict.candidate_score, verdict.current_score,
+            kidnap_.config().verify_min_score, kidnap_.config().verify_ratio,
+            verdict.frames);
+      }
     }
   }
 
   if (!ran)
   {
-    // 어느 단계에서 막혔는지 남긴다. 카메라 게이트(near 0.35m / far 6m /
-    // FOV +-45deg)를 못 넘긴 검출은 obs 에 안 들어가므로, 메시지에 특징점이
-    // 있어도 valid 가 0 일 수 있다 — 그 구분이 여기서 보인다.
     RCLCPP_WARN_THROTTLE(
         node->get_logger(), *node->get_clock(), 3000,
         "[inference] 건너뜀: msg 특징점 %d개 -> 아크T 제외 %d개 "
@@ -306,8 +425,6 @@ void QNode::runInference(const InferenceJob& job)
     return;
   }
 
-  // 추론이 프레임 속도를 못 따라가면 drop 이 계속 늘어난다. 그때가
-  // 모델을 줄이거나 프레임을 솎아낼 시점이다.
   const std::chrono::duration<double, std::milli> elapsed =
       std::chrono::steady_clock::now() - started;
   unsigned long dropped;
@@ -336,17 +453,19 @@ void QNode::applyKidnapVerdict(
     robot0.x = x_px;
     robot0.y = y_px;
     robot0.trail.clear();
-    yaw_deg = robot0.yaw_deg;  // 헤딩은 IMU 가 준다. MLP 는 위치만 낸다.
+    yaw_deg = robot0.yaw_deg;  // heading comes from the IMU; the MLP gives position only
   }
 
-  // 자세만 옮기면 파티클이 옛 자리에 남아 다음 correct() 에서 도로 끌어온다.
+  // Otherwise particles left at the old pose pull the estimate back.
   resetParticles(x_px, y_px, yaw_deg, particle_range_);
 
   RCLCPP_WARN(
       node->get_logger(),
-      "[kidnap] (%.2f, %.2f) -> (%.2f, %.2f) m  frames=%d spread=%.2fm",
+      "[kidnap] (%.2f, %.2f) -> (%.2f, %.2f) m  frames=%d spread=%.2fm  "
+      "점수 %.3f vs 현재 %.3f",
       FieldCoord::toFieldX(old_x), FieldCoord::toFieldY(old_y),
-      verdict.x_m, verdict.y_m, verdict.frames, verdict.spread_m);
+      verdict.x_m, verdict.y_m, verdict.frames, verdict.spread_m,
+      verdict.candidate_score, verdict.current_score);
 }
 
 void QNode::previewRobotPosition(float x, float y)
@@ -492,7 +611,8 @@ void QNode::run()
 
   while (rclcpp::ok())
   {
-    rclcpp::spin_some(node);
+    // spin_some takes one message per subscription, which falls behind 50 Hz odometry at this rate.
+    rclcpp::spin_all(node, std::chrono::milliseconds(10));
 
     const auto now = std::chrono::steady_clock::now();
     const std::chrono::duration<double> elapsed = now - last_update;
@@ -556,78 +676,50 @@ void QNode::publishWorldModelSnapshot(
 
 void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfeature::SharedPtr msg)
 {
+  const std::int64_t stamp_ns = rclcpp::Time(msg->header.stamp).nanoseconds();
+  const bool compensate = latency_compensation_ && stamp_ns > 0;
+  std::int64_t age_ns = 0;
+  if (compensate)
+  {
+    age_ns = node->now().nanoseconds() - stamp_ns;
+  }
+
   float robot0_x;
   float robot0_y;
   float robot0_z;
+  robocup_localization::core::YawLookup yaw_lookup =
+      robocup_localization::core::YawLookup::Empty;
   {
     std::lock_guard<std::mutex> robot0_lock(robot0_mutex);
     robot0_x = robot0.x;
     robot0_y = robot0.y;
     robot0_z = robot0.yaw_deg;
+
+    // The features were seen at capture time; rotating them with the current yaw smears them while turning.
+    if (compensate)
+    {
+      double capture_yaw_deg = 0.0;
+      yaw_lookup = yaw_history_.lookup(stamp_ns, capture_yaw_deg);
+      if (yaw_lookup == robocup_localization::core::YawLookup::Ok)
+      {
+        robot0_z = static_cast<float>(capture_yaw_deg);
+      }
+    }
   }
 
-  std::vector<VISION_POINT> observations;
-  observations.reserve(
-      msg->corner_confidence.size() +
-      msg->t_confidence.size() +
-      msg->cross_confidence.size());
+  if (compensate &&
+      (age_ns > max_feature_age_ns_ ||
+       yaw_lookup == robocup_localization::core::YawLookup::TooOld))
+  {
+    RCLCPP_WARN_THROTTLE(
+        node->get_logger(), *node->get_clock(), 2000,
+        "[latency] vision_feature %.0f ms old (max %.0f ms), dropped",
+        age_ns / 1e6, max_feature_age_ns_ / 1e6);
+    return;
+  }
 
-  const double yaw_rad = robot0_z * M_PI / 180.0;
-  const auto append_features =
-      [&](const auto& confidences,
-          const auto& distances,
-          const auto& raw_x_values,
-          const auto& raw_y_values,
-          const auto& ball_angles,
-          const auto& ball_distances,
-          int feature_type)
-      {
-        const std::size_t count = std::min(
-            {confidences.size(), distances.size(),
-             raw_x_values.size(), raw_y_values.size()});
-        for (std::size_t i = 0; i < count; ++i)
-        {
-          VISION_POINT observation{};
-          observation.CONFIDENCE = confidences[i];
-          observation.DISTANCE = distances[i];
-          observation.RAW_X_MM = raw_x_values[i];
-          observation.RAW_Y_MM = raw_y_values[i];
-          observation.POINT_VEC_X = static_cast<int>(
-              -(raw_x_values[i] / 1000.0 * FieldCoord::PX_PER_M_X *
-                    std::cos(yaw_rad) +
-                raw_y_values[i] / 1000.0 * FieldCoord::PX_PER_M_X *
-                    std::sin(yaw_rad)));
-          observation.POINT_VEC_Y = static_cast<int>(
-              raw_x_values[i] / 1000.0 * FieldCoord::PX_PER_M_Y *
-                  std::sin(yaw_rad) -
-              raw_y_values[i] / 1000.0 * FieldCoord::PX_PER_M_Y *
-                  std::cos(yaw_rad));
-          observation.STD_X = static_cast<int>(robot0_x);
-          observation.STD_Y = static_cast<int>(robot0_y);
-          observation.FEATURE_TYPE = feature_type;
-          observation.BALL_RELATIVE_ANGLE =
-              i < ball_angles.size() ? ball_angles[i] : 0.0;
-          observation.BALL_FEATURE_DISTANCE =
-              i < ball_distances.size() ? ball_distances[i] : 0.0;
-          observations.push_back(observation);
-        }
-      };
-
-  append_features(
-      msg->corner_confidence, msg->corner_distance,
-      msg->corner_point_vec_x, msg->corner_point_vec_y,
-      msg->corner_ball_relative_angle,
-      msg->corner_ball_feature_distance, 0);
-  append_features(
-      msg->t_confidence, msg->t_distance,
-      msg->t_point_vec_x, msg->t_point_vec_y,
-      msg->t_ball_relative_angle,
-      msg->t_ball_feature_distance, 1);
-  append_features(
-      msg->cross_confidence, msg->cross_distance,
-      msg->cross_point_vec_x, msg->cross_point_vec_y,
-      msg->cross_ball_relative_angle,
-      msg->cross_ball_feature_distance, 2);
+  std::vector<VISION_POINT> observations =
+      buildVisionPoints(*msg, robot0_x, robot0_y, robot0_z);
 
   bool mcl_active;
   {
@@ -642,21 +734,18 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
   localization_engine_.submitFeatures(
       std::move(observations), valid_observation, robot0_z);
 
-  // ===== 학습형(ONNX) 추론: 전용 스레드로 넘긴다 =====
-  // MCL 과 독립적으로 돈다 — mcl_active/pan_flag 게이트를 타지 않는다.
-  // 여기서 직접 돌리면 추론 시간만큼 spin 이 멈추고, 그만큼 MCL 갱신과
-  // /localization 발행이 밀린다. 그래서 프레임만 건네고 바로 빠져나온다.
+  // Own thread, independent of the MCL gates, so inference never stalls spin or publishing.
   if (localization_config_.inference.mlp || localization_config_.inference.reloc)
   {
     {
       std::lock_guard<std::mutex> lock(inference_job_mutex_);
       if (inference_pending_)
       {
-        // 아직 이전 프레임을 처리 중이다. 오래된 자세 추정은 쓸모가 없으니
-        // 밀어 두지 않고 최신 프레임으로 덮어쓴다.
+        // Still busy: overwrite with the newest frame, since stale poses are useless.
         ++inference_dropped_;
       }
-      inference_job_ = InferenceJob{msg, robot0_z, has_features};
+      inference_job_ =
+          InferenceJob{msg, robot0_z, vision_pan_rad_.load(), has_features};
       inference_pending_ = true;
     }
     inference_cv_.notify_one();
@@ -672,29 +761,35 @@ void QNode::visionFeatureCallback(const vision_interfaces::msg::Robocupvisionfea
   }
 }
 
-void QNode::imuCallback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg)
+void QNode::imuCallback(
+    const humanoid_interfaces::msg::ImuMsg::SharedPtr msg,
+    const rclcpp::MessageInfo& info)
 {
+  // ImuMsg has no header; the DDS publish time is exact, while callback time lags by a spin period.
+  std::int64_t time_ns = info.get_rmw_message_info().source_timestamp;
+  if (time_ns <= 0)
+  {
+    time_ns = node->now().nanoseconds();
+  }
+
   std::lock_guard<std::mutex> lock(robot0_mutex);
-  double raw_yaw = msg->yaw;
-  ik_d_yaw = raw_yaw - robot0.yaw_deg;
-  if (ik_d_yaw > 180.0)
-    ik_d_yaw -= 360.0;
-  if (ik_d_yaw < -180.0)
-    ik_d_yaw += 360.0;
-  robot0.yaw_deg = raw_yaw;
+  robot0.yaw_deg = msg->yaw;
+  yaw_history_.push(time_ns, msg->yaw);
 }
 
 void QNode::visionCallback(const vision_interfaces::msg::Robocupvision::SharedPtr msg)
 {
-  // PRE CONDITION : msg(vision)
-  // POST CONDITION : Ball_cam_N, Ball_2d_N, Ball_D, PAN, TILT, Ball_speed_N, ROBOT_VEC_N, Ball_speed_level
-  // purpose : 비전에서 받아온 데이터 콜백
-
   localization_engine_.setBallObservation(
       msg->ball_2d_x, msg->ball_2d_y);
   vision_pan_flag_ = msg->flag_pan;
 
-  if (msg->ball_detected)
+  // Vision sends no detected flag; the refiner zeroes distance and position when the ball is lost.
+  const bool ball_detected =
+      msg->ball_d > 0.0 && (msg->ball_2d_x != 0.0 || msg->ball_2d_y != 0.0);
+
+  vision_pan_rad_ = msg->pan;
+
+  if (ball_detected)
   {
     clearManualBall();
   }
@@ -738,7 +833,7 @@ void QNode::visionCallback(const vision_interfaces::msg::Robocupvision::SharedPt
   }
 
   robocup_localization::core::VisionObservation observation;
-  observation.ball_detected = msg->ball_detected;
+  observation.ball_detected = ball_detected;
   observation.ball_x_mm = msg->ball_2d_x;
   observation.ball_y_mm = msg->ball_2d_y;
   observation.ball_distance_mm = msg->ball_d;
@@ -762,25 +857,19 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
   double ik_dy;
   {
     std::lock_guard<std::mutex> robot0_lock(robot0_mutex);
-    // 이동 전 위치 저장
     const double ik_prev_x = robot0.x;
     const double ik_prev_y = robot0.y;
 
     robot0.move(ik_Xmoved, ik_Ymoved);
 
-    // yaw 회전 + odom 스케일이 적용된 픽셀 델타
     ik_dx = robot0.x - ik_prev_x;
     ik_dy = robot0.y - ik_prev_y;
   }
 
-  // 로봇 오도메트리에서 계산한 이동량만 ParticleFilter에 전달한다.
-  // 노이즈 표준편차 계산은 ROBOT(오도메트리 모션 모델)이 소유한다.
   const double ik_trans = std::sqrt(ik_dx * ik_dx + ik_dy * ik_dy);
 
   robocup_localization::core::ParticleMotion motion;
   motion.translation_px = ik_trans;
-  motion.yaw_delta_deg = ik_d_yaw;
-  motion.yaw_stddev = ROBOT::yawStddev(ik_d_yaw);
 
   if (ik_trans >= 0.1)
   {
@@ -862,10 +951,6 @@ void QNode::udpCallback(const humanoid_interfaces::msg::Udp2master::SharedPtr ms
 
 void QNode::masterCallback(const humanoid_interfaces::msg::Master2localization::SharedPtr msg)
 {
-  // PRE CONDITION : msg(master)
-  // POST CONDITION : master_target_N
-  // purpose : 마스터에서 받은 타겟 좌표 데이터 적용
-
   std::lock_guard<std::mutex> lock(master_state_mutex_);
   master_state_.master_target_x = msg->targetx;
   master_state_.master_target_y = msg->targety;
@@ -895,4 +980,3 @@ void QNode::publish_localization(
   msg.obstacles_y.assign(obstacles_y.begin(), obstacles_y.end());
   localization_pub_->publish(msg);
 }
-

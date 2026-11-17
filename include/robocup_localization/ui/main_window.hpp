@@ -1,17 +1,6 @@
-/**
- * @file /include/robocup_localization25/main_window.hpp
- *
- * @brief Qt based gui for %(package)s.
- *
- * @date August 2024
- **/
-
 #ifndef robocup_localization_MAIN_WINDOW_H
 #define robocup_localization_MAIN_WINDOW_H
 
-/*****************************************************************************
-** Includes
-*****************************************************************************/
 
 #include <QMainWindow>
 #include <QGraphicsScene>
@@ -21,6 +10,7 @@
 #include <QtWidgets>
 #include <QDir>
 #include <QFile>
+#include <QHash>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include "robocup_localization/app/user_config_path.hpp"
 #include <vector>
@@ -50,8 +40,7 @@ public:
     memoEdit = new QTextEdit(this);
     memoEdit->setGeometry(30, 30, 371, 271);
 
-    // 오도메트리 파라미터와 같은 이유로 소스 트리에 둔다 —
-    // 패키지 share 에 쓰면 다음 colcon build 에 덮어써진다.
+    // Saved to the source tree: share/ is overwritten on every colcon build.
     const QString memoPath = QString::fromStdString(
         robocup_localization::app::resourcePath("memo.txt"));
 
@@ -86,12 +75,6 @@ private:
   QTextEdit *memoEdit = nullptr;
 };
 
-/*****************************************************************************
-** Interface [MainWindow]
-*****************************************************************************/
-/**
- * @brief Qt central, all operations relating to the view part here.
- */
 class MainWindow : public QMainWindow
 {
   Q_OBJECT
@@ -104,12 +87,10 @@ public:
 
   ~MainWindow();
 
-  // For timer
   QTimer *m_Timer;
   QTimer *m_DataTimer;
   QTimer *m_screenTimer;
 
-  // For Screen
   QPixmap buf;
   QGraphicsScene *scene;
 
@@ -117,15 +98,14 @@ public:
   QPolygonF create_Print_robot(float x, float y, float yaw_deg);
   void Print_Screen_Ball();
 
-  // For UI
   int set_robot_flag = 0;
   int setting_flag = 0;
   bool obstacle_mode = false;
   bool set_obstacle_flag_ = false;
   bool manual_ball_editing_ = false;
   bool manual_ball_placed_ = false;
-  float adult_ui_size_cali = 0.0; // 어덜트 맵 크기에 따른 ui 사이즈 보정값
-  float particle_range = 0.0;     // is 100
+  float adult_ui_size_cali = 0.0;
+  float particle_range = 0.0;
 
   void setting();
 
@@ -135,6 +115,10 @@ private:
   robocup_localization::app::LocalizationSnapshot localization_snapshot_;
   robocup_localization::app::LocalizationConfig localization_config_;
   Ui::MainWindowDesign* ui;
+
+  int odom_input_ui_state_ = -1;
+  QHash<QWidget*, QString> odom_widget_styles_;
+  void applyOdometryInputState(bool metric);
 
   void closeEvent(QCloseEvent *event);
 
@@ -159,4 +143,4 @@ public slots:
   void on_btn_info_clicked();
 };
 
-#endif // robocup_localization25_MAIN_WINDOW_H
+#endif

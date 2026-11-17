@@ -7,13 +7,8 @@ from launch_ros.actions import Node
 
 
 def initial_pose_params() -> dict:
-    """robocup_task_planner 의 INITIAL 배치를 이 노드의 파라미터로 옮긴다.
-    package.xml 에 robocup_task_planner 를 적지 않는다: 그쪽이 이미 이 패키지의
-    메시지에 의존하고 있어서 반대 방향을 걸면 순환이 되어 colcon 이 빌드
-    순서를 못 정한다. 런치 시점의 경로 조회라 빌드 순서와는 무관하지만, 그만큼
-    없을 수도 있으므로 못 찾으면 경고만 남기고 넘어간다 (그 경우 배치 값이
-    0 이 되어 자동 배치 버튼이 필드 중앙을 가리킨다).
-    """
+    """Not a package.xml dependency: robocup_task_planner already depends on this package
+    (a cycle), so it is looked up at launch time and may be missing (poses default to 0)."""
 
     try:
         path = os.path.join(

@@ -2,10 +2,10 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <stdexcept>
 
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
-// 패키지 share 기준 상대경로 설정
 std::string QNode::resolveModelPath(const std::string &path) const
 {
     if (path.empty())
@@ -31,7 +31,6 @@ void QNode::getParams()
 {
     constexpr int default_particle_count = 8000;
 
-    node->declare_parameter("robot_feature", "kids");
     node->declare_parameter("topic.sub_topics.imu", "Imu");
     node->declare_parameter("topic.sub_topics.vision", "vision");
     node->declare_parameter("topic.sub_topics.vision_feature", "vision_feature");
@@ -40,8 +39,9 @@ void QNode::getParams()
     node->declare_parameter("topic.sub_topics.udp", "udp");
     node->declare_parameter("topic.sub_topics.task_planner", "master2local");
     node->declare_parameter("topic.pub_topics.localization", "localization");
-    node->declare_parameter(
-        "particle_filter.weight_update_threshold", 50.0);
+    node->declare_parameter("odometry.input", "ik");
+    node->declare_parameter("particle_filter.min_fit", 0.3);
+    node->declare_parameter("particle_filter.threads", 4);
     node->declare_parameter(
         "particle_filter.particle_nums", default_particle_count);
     node->declare_parameter("particle_filter.noise_enable", true);
@@ -53,16 +53,17 @@ void QNode::getParams()
     node->declare_parameter("inference.mlp_model", "");
     node->declare_parameter("inference.reloc_model", "");
     node->declare_parameter("inference.reloc_topk", 30);
-    node->declare_parameter("inference.feature_min", 2);
-    node->declare_parameter("inference.sign_right", -1.0);
-    node->declare_parameter("inference.sign_forward", 1.0);
-    node->declare_parameter("inference.yaw_offset_deg", 90.0);
-    node->declare_parameter("inference.pan_yaw_sign", -1.0);
     node->declare_parameter("kidnap.enable", false);
     node->declare_parameter("kidnap.disagree_dist_m", 2.0);
     node->declare_parameter("kidnap.cluster_radius_m", 0.5);
     node->declare_parameter("kidnap.min_frames", 5);
     node->declare_parameter("kidnap.cooldown_sec", 3.0);
+    node->declare_parameter("kidnap.verify", true);
+    node->declare_parameter("kidnap.verify_ratio", 1.5);
+    node->declare_parameter("kidnap.verify_min_score", 0.3);
+    node->declare_parameter("latency_compensation.enable", true);
+    node->declare_parameter("latency_compensation.history_sec", 1.0);
+    node->declare_parameter("latency_compensation.max_age_sec", 0.5);
 
     imu_topic = node->get_parameter("topic.sub_topics.imu").as_string();
     vision_topic = node->get_parameter("topic.sub_topics.vision").as_string();
@@ -74,19 +75,40 @@ void QNode::getParams()
     udp_topic = node->get_parameter("topic.sub_topics.udp").as_string();
     master_topic = node->get_parameter("topic.sub_topics.task_planner").as_string();
     local_pub_topic = node->get_parameter("topic.pub_topics.localization").as_string();
-    robot_feature = node->get_parameter("robot_feature").as_string();
+
+    const std::string odometry_input =
+        node->get_parameter("odometry.input").as_string();
+    if (odometry_input == "metric")
+    {
+        robot0.odom_input = ROBOT::OdometryInput::Metric;
+        RCLCPP_INFO(node->get_logger(),
+                    "odometry.input: metric (ikcoordinate 를 cm 실제 이동량으로 쓴다, odom 계수 무시)");
+    }
+    else if (odometry_input == "ik")
+    {
+        robot0.odom_input = ROBOT::OdometryInput::Ik;
+        RCLCPP_INFO(node->get_logger(),
+                    "odometry.input: ik (PARAM 파일의 방향별 odom 계수를 쓴다)");
+    }
+    else
+    {
+        throw std::runtime_error(
+            "odometry.input must be \"ik\" or \"metric\", got \"" + odometry_input + "\"");
+    }
 
     robocup_localization::core::ParticleFilterConfig config;
     config.particle_count = static_cast<std::size_t>(
         node->get_parameter("particle_filter.particle_nums").as_int());
-    config.weight_update_threshold = node->get_parameter(
-                                             "particle_filter.weight_update_threshold")
-                                         .as_double();
+    config.min_fit = node->get_parameter("particle_filter.min_fit").as_double();
     config.particle_range = particle_range_;
     config.noise_enabled = node->get_parameter(
                                    "particle_filter.noise_enable")
                                .as_bool();
+    config.threads = static_cast<int>(
+        node->get_parameter("particle_filter.threads").as_int());
     localization_engine_.configureParticleFilter(config);
+    RCLCPP_INFO(node->get_logger(), "[mcl] particles %zu, weighting threads %d (0 = all cores)",
+                config.particle_count, config.threads);
 
     auto &loop_rate = localization_config_.loop_rate;
     loop_rate.ros_spin_hz =
@@ -113,16 +135,22 @@ void QNode::getParams()
         resolveModelPath(node->get_parameter("inference.reloc_model").as_string());
     inference_config_.reloc_topk =
         node->get_parameter("inference.reloc_topk").as_int();
-    inference_config_.feature_min =
-        static_cast<int>(node->get_parameter("inference.feature_min").as_int());
-    inference_config_.sign_right =
-        node->get_parameter("inference.sign_right").as_double();
-    inference_config_.sign_forward =
-        node->get_parameter("inference.sign_forward").as_double();
-    inference_config_.yaw_offset_deg =
-        node->get_parameter("inference.yaw_offset_deg").as_double();
-    inference_config_.pan_yaw_sign =
-        node->get_parameter("inference.pan_yaw_sign").as_double();
+
+    latency_compensation_ =
+        node->get_parameter("latency_compensation.enable").as_bool();
+    const double history_sec =
+        node->get_parameter("latency_compensation.history_sec").as_double();
+    const double max_age_sec =
+        node->get_parameter("latency_compensation.max_age_sec").as_double();
+    yaw_history_.setSpan(static_cast<std::int64_t>(history_sec * 1e9));
+    max_feature_age_ns_ = static_cast<std::int64_t>(max_age_sec * 1e9);
+    if (latency_compensation_)
+    {
+        RCLCPP_INFO(
+            node->get_logger(),
+            "[latency] on: features use the yaw at capture time (history %.2fs, max age %.2fs)",
+            history_sec, max_age_sec);
+    }
 
     robocup_localization::app::KidnapRecoveryConfig kidnap_config;
     kidnap_config.enable =
@@ -135,6 +163,24 @@ void QNode::getParams()
         static_cast<int>(node->get_parameter("kidnap.min_frames").as_int());
     kidnap_config.cooldown_sec =
         node->get_parameter("kidnap.cooldown_sec").as_double();
+    kidnap_config.verify =
+        node->get_parameter("kidnap.verify").as_bool();
+    kidnap_config.verify_ratio =
+        node->get_parameter("kidnap.verify_ratio").as_double();
+    kidnap_config.verify_min_score =
+        node->get_parameter("kidnap.verify_min_score").as_double();
+
+    // Below MAX_JUMP the PF corrects itself; judging kidnaps there would overwrite a healthy PF.
+    if (kidnap_config.disagree_dist_m < MclTune::MAX_JUMP_M)
+    {
+        RCLCPP_WARN(
+            node->get_logger(),
+            "[kidnap] disagree_dist_m %.2f < MAX_JUMP_M %.2f — %.2f 로 올립니다",
+            kidnap_config.disagree_dist_m,
+            MclTune::MAX_JUMP_M,
+            MclTune::MAX_JUMP_M);
+        kidnap_config.disagree_dist_m = MclTune::MAX_JUMP_M;
+    }
     kidnap_.configure(kidnap_config);
 
     if (kidnap_config.enable)
@@ -144,13 +190,16 @@ void QNode::getParams()
             "[kidnap] on: dist>=%.2fm, %d frames, cluster<=%.2fm, cooldown %.1fs",
             kidnap_config.disagree_dist_m, kidnap_config.min_frames,
             kidnap_config.cluster_radius_m, kidnap_config.cooldown_sec);
+        if (kidnap_config.verify)
+        {
+            RCLCPP_INFO(
+                node->get_logger(),
+                "[kidnap] verify: score>=%.2f and >=x%.2f current",
+                kidnap_config.verify_min_score, kidnap_config.verify_ratio);
+        }
     }
 
-    // INITIAL 배치. robocup_task_planner 의 state_pose.yaml 과 같은 값을
-    // 써야 한다 — 심판이 로봇을 놓는 자리는 하나뿐이고, 추정기와 판단기가
-    // 서로 다른 자리를 알고 있으면 READY 로 넘어갈 때 어긋난다. 런치가 그
-    // yaml 을 읽어 여기로 넘긴다. yaml 은 왼쪽 진영만 적고, 오른쪽은
-    // InitialPoseConfig::forSide 가 180도 돌려 만든다.
+    // Must match robocup_task_planner state_pose.yaml (passed in by the launch file).
     auto &initial_pose = localization_config_.initial_pose;
     for (int i = 0; i < robocup_localization::app::InitialPoseConfig::ROBOT_COUNT; ++i)
     {
@@ -167,7 +216,6 @@ void QNode::getParams()
             node->get_parameter(prefix + "yaw_deg").as_double();
     }
 
-    // 없는 파일은 알림
     const std::pair<bool, std::string> model_checks[] = {
         {inference_config_.mlp_enable, inference_config_.mlp_model_path},
         {inference_config_.reloc_enable, inference_config_.reloc_model_path}};

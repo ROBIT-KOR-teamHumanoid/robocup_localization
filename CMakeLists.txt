@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.5)
 project(robocup_localization)
+
+# colcon passes no build type by default, which builds unoptimized (MCL weighting ~2x slower).
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(CMAKE_AUTOUIC OFF)
@@ -10,7 +15,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(Boost 1.71.0 REQUIRED COMPONENTS thread)
@@ -18,13 +22,12 @@ find_package(Qt5 COMPONENTS Widgets Core Gui Network REQUIRED)
 find_package(humanoid_interfaces REQUIRED)
 find_package(gamecontroller REQUIRED)
 find_package(vision_interfaces REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 
-# onnxruntime (C++) — 학습형 ONNX 추론.
-# 경로를 박아두지 않고 탐색한다. 표준 위치 / CMAKE_PREFIX_PATH / 홈 디렉터리의
-# onnxruntime, 그리고 환경변수 ONNXRUNTIME_ROOT 가 가리키는 곳을 순서대로 본다.
+# onnxruntime is searched, not hardcoded: standard paths, CMAKE_PREFIX_PATH, $ONNXRUNTIME_ROOT, $HOME.
 option(WITH_INFERENCE "학습형 ONNX 추론 빌드" ON)
 find_path(ONNXRUNTIME_INCLUDE_DIR onnxruntime_cxx_api.h
   HINTS ENV ONNXRUNTIME_ROOT ENV HOME
@@ -86,7 +89,7 @@ qt5_add_resources(QT_RESOUCE_HPP ${PRO_RESOURCE_DIR})
 include_directories(
 	include/
 	${CMAKE_CURRENT_BINARY_DIR}
-	${CMAKE_CURRENT_SOURCE_DIR}   # robot_config.h 검색 경로
+	${CMAKE_CURRENT_SOURCE_DIR}   # for robot_config.h
 )
 set(EXE_TARGET ${PROJECT_NAME}_bin)
 add_executable(${EXE_TARGET}
@@ -99,21 +102,24 @@ add_executable(${EXE_TARGET}
   )
 set_target_properties(${EXE_TARGET} PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
 
-# 사용자가 저장한 오도메트리/메모는 install/ 이 아니라 소스 트리에 써야 한다.
-# install/ 은 colcon 이 매 빌드마다 소스에서 다시 복사하는 곳이라 저장해도
-# 다음 빌드에 덮어써진다. 실행 파일은 소스 경로를 알 방법이 없으므로
-# 빌드 시점에 박아 준다.
+# User-saved files go to the source tree (install/ is recopied every build);
+# the executable cannot know the source path, so it is baked in here.
 target_compile_definitions(${EXE_TARGET} PRIVATE
     ROBOCUP_LOCALIZATION_SOURCE_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/resources")
-ament_target_dependencies(${EXE_TARGET} rclcpp Boost humanoid_interfaces gamecontroller vision_interfaces OpenCV ament_index_cpp)
+ament_target_dependencies(${EXE_TARGET} rclcpp Boost humanoid_interfaces gamecontroller vision_interfaces geometry_msgs OpenCV ament_index_cpp)
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(${EXE_TARGET} Qt5::Widgets Qt5::Core Qt5::Gui Qt5::Network ${OpenCV_LIBRARIES} "${cpp_typesupport_target}")
+
+# Particle weights are computed in parallel when OpenMP is available (OMP_NUM_THREADS caps it).
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+  target_link_libraries(${EXE_TARGET} OpenMP::OpenMP_CXX)
+endif()
 
 if(WITH_INFERENCE)
   target_include_directories(${EXE_TARGET} PRIVATE "${ONNXRUNTIME_INCLUDE_DIR}")
   target_link_libraries(${EXE_TARGET} "${ONNXRUNTIME_LIBRARY}")
   target_compile_definitions(${EXE_TARGET} PRIVATE ROBOCUP_LOCALIZATION_WITH_ONNX)
-  # libonnxruntime.so.1 런타임 검색 경로(RPATH)는 링크한 라이브러리 위치에서 자동으로 얻는다.
   set_target_properties(${EXE_TARGET} PROPERTIES
     INSTALL_RPATH_USE_LINK_PATH TRUE)
 endif()

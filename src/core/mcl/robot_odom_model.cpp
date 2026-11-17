@@ -1,7 +1,3 @@
-/*****************************************************************************
-** ROBOT class implementations
-*****************************************************************************/
-
 #include "robocup_localization/core/mcl/robot_odom_model.hpp"
 #include "field_coordinate/field_coordinate.hpp"
 
@@ -9,10 +5,6 @@ ROBOT::ROBOT() {}
 
 void ROBOT::appendTrail(double Xmoved, double Ymoved)
 {
-  // PRE CONDITION : Xmoved, Ymoved
-  // POST CONDITION : trail
-  // PURPOSE : 로봇에 Xmoved 혹은 Ymoved값이 들어오면 이동 경로를 저장
-
   if (Xmoved != 0 || Ymoved != 0)
   {
     point.X = this->x;
@@ -31,26 +23,40 @@ void ROBOT::appendTrail(double Xmoved, double Ymoved)
 
 void ROBOT::move(double Xmoved, double Ymoved)
 {
-  // PRE CONDITION : Xmoved, Ymoved
-  // POST CONDITION : x, y
-  // PURPOSE : 로봇에 Xmoved 혹은 Ymoved값이 들어오면 해당 값으로 이동
-
   appendTrail(Xmoved, Ymoved);
 
   this->now_ik_param_x = Xmoved;
   this->now_ik_param_y = Ymoved;
-  if (Xmoved > 0)
-    Xmoved *= odom_fx;
-  else
-    Xmoved *= odom_bx;
 
-  if (Ymoved > 0)
-    Ymoved *= odom_ly;
+  double forward_m;
+  double left_m;
+  if (odom_input == OdometryInput::Metric)
+  {
+    forward_m = Xmoved / METRIC_UNITS_PER_METER;
+    left_m = Ymoved / METRIC_UNITS_PER_METER;
+  }
   else
-    Ymoved *= odom_ry;
+  {
+    // Odom coefficients are calibrated in map-x pixels, so meters use that scale.
+    if (Xmoved > 0)
+      forward_m = Xmoved * odom_fx / FieldCoord::PX_PER_M_X;
+    else
+      forward_m = Xmoved * odom_bx / FieldCoord::PX_PER_M_X;
 
-  this->x += Xmoved * cos((this->yaw_deg + 90) * DEG2RAD) - Ymoved * sin((this->yaw_deg + 90) * DEG2RAD);
-  this->y -= Xmoved * sin((this->yaw_deg + 90) * DEG2RAD) + Ymoved * cos((this->yaw_deg + 90) * DEG2RAD);
+    if (Ymoved > 0)
+      left_m = Ymoved * odom_ly / FieldCoord::PX_PER_M_X;
+    else
+      left_m = Ymoved * odom_ry / FieldCoord::PX_PER_M_X;
+  }
+
+  // Rotate in meters, then scale per axis: x/y px/m differ (45.8 / 50 on LARGE) and one
+  // shared factor skews motion by up to 9%. Map y grows downward.
+  const double heading = (this->yaw_deg + 90) * DEG2RAD;
+  const double world_dx_m = forward_m * cos(heading) - left_m * sin(heading);
+  const double world_dy_m = forward_m * sin(heading) + left_m * cos(heading);
+
+  this->x += world_dx_m * FieldCoord::PX_PER_M_X;
+  this->y -= world_dy_m * FieldCoord::PX_PER_M_Y;
 
   if (this->x < FieldCoord::toPixelX(-FieldCoord::A / 2))
     this->x = FieldCoord::toPixelX(-FieldCoord::A / 2);
@@ -70,9 +76,4 @@ double ROBOT::translationStddev(double trans_px, double rot_rad)
 double ROBOT::directionStddev(double trans_px, double rot_rad)
 {
   return ALPHA1 * std::fabs(rot_rad) + ALPHA2 * trans_px;
-}
-
-double ROBOT::yawStddev(double yaw_delta_deg)
-{
-  return ALPHA5 * std::fabs(yaw_delta_deg) + 0.1;
 }

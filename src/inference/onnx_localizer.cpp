@@ -1,12 +1,6 @@
-/**
- * @file onnx_localizer.cpp
- * @brief onnx_localizer.hpp 구현 (onnxruntime C++ 격리)
- *
- * ROBOCUP_LOCALIZATION_WITH_ONNX 가 정의되지 않으면 스텁으로 컴파일된다.
- */
-
 #include "robocup_localization/inference/onnx_localizer.hpp"
 
+// Compiled as a stub when ROBOCUP_LOCALIZATION_WITH_ONNX is undefined; init() then fails.
 #ifdef ROBOCUP_LOCALIZATION_WITH_ONNX
 
 #include <algorithm>
@@ -21,9 +15,6 @@
 namespace robocup_localization::inference
 {
 
-// 모델은 L-Field(22x14)로 학습됐고 출력 pose_norm 을 A/2, B/2 로 역정규화한다.
-// robot_config.h 의 필드 타입을 바꾸면 MCL 은 정상 동작하는데 MLP 만 조용히
-// 틀린 좌표를 낸다. 컴파일 타임에 잡는다.
 static_assert(
     FieldCoord::A == MODEL_FIELD_A && FieldCoord::B == MODEL_FIELD_B,
     "vision_imu.onnx / clsreg.onnx 는 L-Field(22x14) 전용입니다. "
@@ -33,7 +24,6 @@ static_assert(
 namespace
 {
 
-/// 하나의 세션 + 입출력 이름
 struct SessionBundle
 {
   std::unique_ptr<Ort::Session> session;
@@ -41,7 +31,7 @@ struct SessionBundle
   std::vector<std::string> output_names;
 };
 
-}  // namespace
+}
 
 struct OnnxLocalizer::Impl
 {
@@ -89,7 +79,6 @@ struct OnnxLocalizer::Impl
     }
   }
 
-  /// obs[44] → 세션 실행, 출력 텐서들을 반환
   std::vector<Ort::Value> run(SessionBundle& bundle, const Observation& obs)
   {
     std::array<int64_t, 2> shape{1, OBS_SIZE};
@@ -240,15 +229,13 @@ RelocResult OnnxLocalizer::runReloc(const Observation& obs)
   return result;
 }
 
-}  // namespace robocup_localization::inference
+}
 
-#else  // ROBOCUP_LOCALIZATION_WITH_ONNX
+#else
 
 namespace robocup_localization::inference
 {
 
-// onnxruntime 없이 빌드된 스텁. init() 이 항상 실패하므로 QNode 는
-// "학습형 비활성화" 경로를 그대로 탄다.
 struct OnnxLocalizer::Impl
 {
   std::string error =
@@ -265,6 +252,6 @@ const std::string& OnnxLocalizer::lastError() const { return impl_->error; }
 MlpResult OnnxLocalizer::runMlp(const Observation&) { return {}; }
 RelocResult OnnxLocalizer::runReloc(const Observation&) { return {}; }
 
-}  // namespace robocup_localization::inference
+}
 
-#endif  // ROBOCUP_LOCALIZATION_WITH_ONNX
+#endif

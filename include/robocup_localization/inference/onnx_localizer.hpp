@@ -17,7 +17,6 @@ namespace robocup_localization::inference
     OnnxLocalizer(const OnnxLocalizer &) = delete;
     OnnxLocalizer &operator=(const OnnxLocalizer &) = delete;
 
-    // 설정에서 활성화된 모델만 로드한다. 실패 시 false + last_error().
     bool init(const InferenceConfig &config);
 
     bool mlpReady() const;
@@ -33,4 +32,4 @@ namespace robocup_localization::inference
     std::unique_ptr<Impl> impl_;
   };
 
-} // namespace robocup_localization::inference
+}

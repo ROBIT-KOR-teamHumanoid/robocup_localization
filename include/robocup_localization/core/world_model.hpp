@@ -100,4 +100,4 @@ namespace robocup_localization::core
     WorldModelSnapshot snapshot_;
   };
 
-} // namespace robocup_localization::core
+}

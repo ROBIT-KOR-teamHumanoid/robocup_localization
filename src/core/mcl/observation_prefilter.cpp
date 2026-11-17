@@ -15,9 +15,6 @@ PreFilter::PreFilter()
 
 void PreFilter::computeCircle(std::vector<VISION_POINT>& vect, int start, double yaw)
 {
-    
-    // POST CONDITION : CIRCLE_CENTER, CIRCLE_R
-    // PURPOSE : 감지된 특징점들의 외접원 계산 (setCircle / checkLocalPoint 공통 로직)
 
     X_MAX = -9999;
     X_MIN =  9999;
@@ -48,7 +45,6 @@ void PreFilter::computeCircle(std::vector<VISION_POINT>& vect, int start, double
     }
     CIRCLE_R += CIRCLE_MARGIN_PX;
 
-    // T자 특징점은 분포가 드물어 서클 범위를 추가로 확장
     for (int i = start; i < (int)vect.size(); i++)
     {
         if (vect[i].FEATURE_TYPE == (int)FieldCoord::T_SHAPE)
@@ -61,10 +57,6 @@ void PreFilter::computeCircle(std::vector<VISION_POINT>& vect, int start, double
 
 void PreFilter::setCircle(double yaw, std::vector<VISION_POINT>& vect)
 {
-    // PRE CONDITION : YAW, VECTOR<VISION_POINT>
-    // POST CONDITION : CIRCLE_CENTER, CIRCLE_R
-    // PURPOSE : 로컬의 특징점 범위를 설정
-
     if (vect.empty())
         return;
     computeCircle(vect, 0, yaw);
@@ -72,10 +64,6 @@ void PreFilter::setCircle(double yaw, std::vector<VISION_POINT>& vect)
 
 void PreFilter::checkLocalPoint(int ago_point_cnt, double yaw, std::vector<VISION_POINT>& vect)
 {
-    // PRE CONDITION : ago_point_cnt, yaw, vect<VISION_POINT>
-    // POST CONDITION : Local_point_check
-    // PURPOSE : 로봇의 yaw값을 통해 파티클 필터 계산에 사용될 특징점 활성화
-
     if (vect.empty() || ago_point_cnt >= (int)vect.size())
         return;
 
@@ -92,10 +80,6 @@ void PreFilter::checkLocalPoint(int ago_point_cnt, double yaw, std::vector<VISIO
 
 void PreFilter::dropUnmatched(std::vector<VISION_POINT>& vect)
 {
- 
-    // PURPOSE : robot0 기준 estimated world 좌표와 nearest landmark 거리가
-    //           OBS_FILTER_DIST_M 초과인 관측 제거
-    // POST CONDITION : Local_point_on_off — 살아남은 관측이 매칭된 랜드마크만 1
 
     for (int i = 0; i < FieldCoord::FEATURE_POINT_COUNT; i++)
         Local_point_on_off[i] = 0;
@@ -147,10 +131,8 @@ int PreFilter::computeYSign(double robot_yaw_deg, const std::vector<double>& goa
     if (goal_post_pan_degs.empty())
         return 0;
 
-    // PAN_POSITION = -servo_right_deg → published pan은 오른쪽이 음수
-    // vec_y = -d*cos(yaw+pan)*PX = ry_m*PX → cos(yaw+pan) < 0 이면 ry_m > 0
-    // |cos| < COS_DEAD_ZONE 구간 (yaw+pan ≈ ±90°)은 y부호 판별 불가 → skip
-
+    // Published pan is negative to the right; cos(yaw + pan) < 0 means y > 0.
+    // Near +-90 deg (COS_DEAD_ZONE) the sign is undecidable.
     int pos_votes = 0;
     int neg_votes = 0;
     for (double pan_deg : goal_post_pan_degs)
@@ -172,10 +154,6 @@ int PreFilter::computeYSign(double robot_yaw_deg, const std::vector<double>& goa
 
 bool PreFilter::passBearing(double obs_angle, double exp_angle)
 {
-    // PRE CONDITION : obs_angle (관측 방향), exp_angle (예상 방향) - 라디안
-    // POST CONDITION : 두 방향 차이가 BEARING_MAX_RAD 이내이면 true
-    // PURPOSE : bearing 필터 통과 여부 판단
-
     double diff = fabs(obs_angle - exp_angle);
     if (diff > M_PI)
         diff = 2 * M_PI - diff;

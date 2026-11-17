@@ -10,4 +10,4 @@ struct Pose2D
   float yaw_deg = 0.0f;
 };
 
-}  // namespace robocup_localization::core
+}

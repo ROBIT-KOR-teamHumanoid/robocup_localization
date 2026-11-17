@@ -1,4 +1,3 @@
-
 #ifndef OBSTACLE_H
 #define OBSTACLE_H
 
@@ -7,7 +6,6 @@ using namespace std;
 class OBSTACLE
 {
 public:
-    //For Init
     OBSTACLE()
     {
 
@@ -28,4 +26,4 @@ private:
 };
 
 
-#endif // OBSTACLE_H
+#endif

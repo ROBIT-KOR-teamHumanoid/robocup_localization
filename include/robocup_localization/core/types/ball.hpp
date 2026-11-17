@@ -26,4 +26,4 @@ private:
 };
 
 
-#endif // BALL_H
+#endif

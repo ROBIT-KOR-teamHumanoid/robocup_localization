@@ -20,6 +20,7 @@ struct RobotStateSnapshot
   float odom_backward = 0.0f;
   float odom_left = 0.0f;
   float odom_right = 0.0f;
+  bool odom_metric = false;
   float ik_x = 0.0f;
   float ik_y = 0.0f;
   std::vector<core::TrajectoryPoint> trail;
@@ -37,15 +38,14 @@ struct MasterStateSnapshot
   std::string master_move2ball_phase;
 };
 
-// GameController 가 보내는 주 상태 코드. gamecontroller 의 Gamecontroldata
-// 와 robocup_task_planner 의 core/world/game_state.py 가 쓰는 값과 같다.
+// Must match gamecontroller Gamecontroldata and robocup_task_planner game_state.py.
 constexpr int STATE_INITIAL = 0;
 constexpr int STATE_READY = 1;
 constexpr int STATE_SET = 2;
 constexpr int STATE_PLAYING = 3;
 constexpr int STATE_FINISHED = 4;
 
-// 진영. gamecontroller/main_window.hpp 의 `#define LEFT 0` 과 같다.
+// Matches `#define LEFT 0` in gamecontroller main_window.hpp.
 constexpr int SIDE_LEFT = 0;
 constexpr int SIDE_RIGHT = 1;
 
@@ -83,4 +83,4 @@ public:
   virtual LocalizationConfig localizationConfig() const noexcept = 0;
 };
 
-}  // namespace robocup_localization::app
+}

@@ -19,7 +19,6 @@ void Resampler::systematic(
         return;
     }
 
-    // 정규화 가중치의 누적분포
     std::vector<double> cdf(particle_count);
     cdf[0] = sorted_weights[0].WEIGHT / total_weight;
     for (int i = 1; i < particle_count; ++i)
@@ -30,7 +29,6 @@ void Resampler::systematic(
     const double step  = 1.0 / particle_count;
     const double start = uniformRandom(step);
 
-    // 원본을 덮어쓰기 전에 선택 결과를 모아둔다.
     std::vector<Particle> selected(particle_count);
     int j = 0;
     for (int i = 0; i < particle_count; ++i)
@@ -51,4 +49,4 @@ void Resampler::systematic(
     }
 }
 
-}  // namespace robocup_localization::core
+}

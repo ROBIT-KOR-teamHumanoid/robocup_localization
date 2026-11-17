@@ -1,14 +1,3 @@
-/**
- * @file /src/main_window.cpp
- *
- * @brief Implementation for the qt gui.
- *
- * @date August 2026
- **/
-/*****************************************************************************
-** Includes
-*****************************************************************************/
-
 #include "robocup_localization/ui/main_window.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
 #include "robocup_localization/app/user_config_path.hpp"
@@ -21,6 +10,7 @@
 #include <fstream>
 #include <iostream>
 #include <mutex>
+#include <numeric>
 #include <vector>
 
 #include "robot_config.h"
@@ -88,7 +78,7 @@ bool mapToFieldScene(
   return true;
 }
 
-}  // namespace
+}
 
 MainWindow::MainWindow(
     robocup_localization::app::LocalizationSnapshotSource& snapshots,
@@ -114,17 +104,14 @@ MainWindow::MainWindow(
     return std::max(1, static_cast<int>(std::lround(1000.0 / safe_hz)));
   };
 
-  // 데이터 업데이트 타이머
   m_DataTimer = new QTimer(this);
   connect(m_DataTimer, SIGNAL(timeout()), this, SLOT(main()));
   m_DataTimer->start(interval_ms(loop_rate.ui_data_hz));
 
-  // UI 업데이트 타이머
   m_screenTimer = new QTimer(this);
   connect(m_screenTimer, SIGNAL(timeout()), this, SLOT(Print_Screen()));
   m_screenTimer->start(interval_ms(loop_rate.ui_render_hz));
 
-  // 맵 QPixmap 동적 생성 (FieldCoord 기반)
   buf = QPixmap(FieldCoord::MAP_W, FieldCoord::MAP_H);
   buf.fill(QColor(34, 139, 34));
 
@@ -139,23 +126,19 @@ MainWindow::MainWindow(
     p.setPen(QPen(Qt::white, line_w));
     p.setBrush(Qt::NoBrush);
 
-    // 외곽 경계선
     p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2),
                FieldCoord::toPixelY(FieldCoord::B / 2),
                (int)(FieldCoord::A * FieldCoord::PX_PER_M_X),
                (int)(FieldCoord::B * FieldCoord::PX_PER_M_Y));
 
-    // 하프라인
     p.drawLine(FieldCoord::toPixelX(0), FieldCoord::toPixelY(FieldCoord::B / 2),
                FieldCoord::toPixelX(0), FieldCoord::toPixelY(-FieldCoord::B / 2));
 
-    // 센터 서클 (J = 지름)
     int circle_r = (int)(FieldCoord::J / 2.0 * FieldCoord::PX_PER_M_X);
     p.drawEllipse(FieldCoord::toPixelX(0) - circle_r,
                   FieldCoord::toPixelY(0) - circle_r,
                   circle_r * 2, circle_r * 2);
 
-    // 골대 (필드 경계 바깥, C 깊이 × D 너비)
     int goal_w = (int)(FieldCoord::C * FieldCoord::PX_PER_M_X);
     int goal_h = (int)(FieldCoord::D * FieldCoord::PX_PER_M_Y);
     p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2) - goal_w,
@@ -165,54 +148,45 @@ MainWindow::MainWindow(
                FieldCoord::toPixelY(FieldCoord::D / 2),
                goal_w, goal_h);
 
-    // 좌측 골 에어리어
     p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2),
                FieldCoord::toPixelY(FieldCoord::F / 2),
                (int)(FieldCoord::E * FieldCoord::PX_PER_M_X),
                (int)(FieldCoord::F * FieldCoord::PX_PER_M_Y));
 
-    // 우측 골 에어리어
     p.drawRect(FieldCoord::toPixelX(FieldCoord::A / 2 - FieldCoord::E),
                FieldCoord::toPixelY(FieldCoord::F / 2),
                (int)(FieldCoord::E * FieldCoord::PX_PER_M_X),
                (int)(FieldCoord::F * FieldCoord::PX_PER_M_Y));
 
-    // 좌측 페널티 에어리어
     p.drawRect(FieldCoord::toPixelX(-FieldCoord::A / 2),
                FieldCoord::toPixelY(FieldCoord::H / 2),
                (int)(FieldCoord::G * FieldCoord::PX_PER_M_X),
                (int)(FieldCoord::H * FieldCoord::PX_PER_M_Y));
 
-    // 우측 페널티 에어리어
     p.drawRect(FieldCoord::toPixelX(FieldCoord::A / 2 - FieldCoord::G),
                FieldCoord::toPixelY(FieldCoord::H / 2),
                (int)(FieldCoord::G * FieldCoord::PX_PER_M_X),
                (int)(FieldCoord::H * FieldCoord::PX_PER_M_Y));
 
-    // 마크 크기 (픽셀)
     int mark_sz = (int)(FieldCoord::MARK_SZ / 2.0 * FieldCoord::PX_PER_M_X);
     if (mark_sz < 2)
       mark_sz = 2;
 
     p.setBrush(Qt::white);
 
-    // 센터 마크 (점)
     p.drawEllipse(FieldCoord::toPixelX(0) - mark_sz, FieldCoord::toPixelY(0) - mark_sz,
                   mark_sz * 2, mark_sz * 2);
 
-    // 좌측 페널티 마크 (점)
     int pm0_x = FieldCoord::toPixelX(-FieldCoord::A / 2 + FieldCoord::I_DIST);
     int pm0_y = FieldCoord::toPixelY(0);
     p.drawEllipse(pm0_x - mark_sz, pm0_y - mark_sz, mark_sz * 2, mark_sz * 2);
 
-    // 우측 페널티 마크 (점)
     int pm1_x = FieldCoord::toPixelX(FieldCoord::A / 2 - FieldCoord::I_DIST);
     int pm1_y = FieldCoord::toPixelY(0);
     p.drawEllipse(pm1_x - mark_sz, pm1_y - mark_sz, mark_sz * 2, mark_sz * 2);
 
     p.setBrush(Qt::NoBrush);
 
-    // 코너 아크 (L_ARC > 0인 경우만)
     if (FieldCoord::L_ARC > 0.0)
     {
       int r = (int)(FieldCoord::L_ARC * FieldCoord::PX_PER_M_X);
@@ -220,10 +194,10 @@ MainWindow::MainWindow(
       int x_r = FieldCoord::toPixelX(FieldCoord::A / 2);
       int y_t = FieldCoord::toPixelY(FieldCoord::B / 2);
       int y_b = FieldCoord::toPixelY(-FieldCoord::B / 2);
-      p.drawArc(x_l - r, y_t - r, 2 * r, 2 * r, 270 * 16, 90 * 16); // 좌상단
-      p.drawArc(x_r - r, y_t - r, 2 * r, 2 * r, 180 * 16, 90 * 16); // 우상단
-      p.drawArc(x_l - r, y_b - r, 2 * r, 2 * r, 0 * 16, 90 * 16);   // 좌하단
-      p.drawArc(x_r - r, y_b - r, 2 * r, 2 * r, 90 * 16, 90 * 16);  // 우하단
+      p.drawArc(x_l - r, y_t - r, 2 * r, 2 * r, 270 * 16, 90 * 16);
+      p.drawArc(x_r - r, y_t - r, 2 * r, 2 * r, 180 * 16, 90 * 16);
+      p.drawArc(x_l - r, y_b - r, 2 * r, 2 * r, 0 * 16, 90 * 16);
+      p.drawArc(x_r - r, y_b - r, 2 * r, 2 * r, 90 * 16, 90 * 16);
     }
 
     p.end();
@@ -348,20 +322,73 @@ void MainWindow::setting()
       ui->odom_ly_value->value(), ui->odom_ry_value->value());
 }
 
-void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 50ms로 분리
+void MainWindow::applyOdometryInputState(bool metric)
+{
+  // Metric odometry ignores the coefficients, so the inputs are disabled and dimmed.
+  QWidget *boxes[] = {ui->odom_fx_value, ui->odom_bx_value,
+                      ui->odom_ly_value, ui->odom_ry_value};
+  QWidget *labels[] = {ui->label_9, ui->label_13, ui->label_10, ui->label_14};
+
+  if (odom_widget_styles_.isEmpty())
+  {
+    for (QWidget *w : boxes)
+      odom_widget_styles_.insert(w, w->styleSheet());
+    for (QWidget *w : labels)
+      odom_widget_styles_.insert(w, w->styleSheet());
+  }
+
+  QString tooltip;
+  QString box_style;
+  QString label_style;
+  if (metric)
+  {
+    tooltip = QString::fromUtf8(
+        "odometry.input: metric\n"
+        "ikcoordinate 를 실제 이동량(cm)으로 쓰므로 odom 계수는 쓰지 않는다.");
+    box_style =
+        "background-color: rgb(24, 24, 24);"
+        "color: rgb(60, 60, 60);"
+        "border: 1px solid rgb(40, 40, 40);";
+    label_style = "color: rgb(70, 70, 70);";
+  }
+
+  for (QWidget *w : boxes)
+  {
+    w->setEnabled(!metric);
+    w->setToolTip(tooltip);
+    if (metric)
+      w->setStyleSheet(box_style);
+    else
+      w->setStyleSheet(odom_widget_styles_.value(w));
+  }
+  for (QWidget *w : labels)
+  {
+    w->setToolTip(tooltip);
+    if (metric)
+      w->setStyleSheet(label_style);
+    else
+      w->setStyleSheet(odom_widget_styles_.value(w));
+  }
+}
+
+void MainWindow::Print_Screen()
 {
   localization_snapshot_ = snapshots_->localizationSnapshot();
+
+  const int odom_input_state =
+      static_cast<int>(localization_snapshot_.robot.odom_metric);
+  if (odom_input_state != odom_input_ui_state_)
+  {
+    applyOdometryInputState(localization_snapshot_.robot.odom_metric);
+    odom_input_ui_state_ = odom_input_state;
+  }
   if (manual_ball_editing_ && manual_ball_placed_ &&
       !localization_snapshot_.world.manual_ball_active)
   {
     manual_ball_editing_ = false;
     manual_ball_placed_ = false;
   }
-  // PRE CONDITION : robotX.n, obstacleX.n, qnode->ball.n, ParticleFilter
-  // POST CONDITION : UI
-  // purpose : UI출력
 
-  // INIT
   if (scene)
   {
     delete scene;
@@ -423,7 +450,6 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
   QPen targetlinePen(Qt::gray);
   targetlinePen.setWidth(2);
 
-  // print obstacle
   for (const auto &obs : localization_snapshot_.world.obstacles)
   {
     if (obs.x != 0 && obs.y != 0)
@@ -434,7 +460,6 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
     }
   }
 
-  // print debug obstacles
   for (const auto &obs : localization_snapshot_.world.manual_obstacles)
   {
     scene->addRect(cvt_Print_xy(obs.x) - 6,
@@ -442,7 +467,6 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
                    redBrush);
   }
 
-  // PRINT PARTICLE
   for (const auto& particle : localization_snapshot_.particle_filter.particles)
   {
     scene->addLine(
@@ -450,11 +474,45 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
         cvt_Print_xy(particle.x), cvt_Print_xy(particle.y), grayPen);
   }
 
-  // PRINT INFERENCE (ONNX) ESTIMATE
+  {
+    // Last MCL cycle before resampling, sampled evenly across the weight ranking so the
+    // whole spread shows; color spans min (blue) to max (red), heaviest drawn last.
+    constexpr std::size_t SCORED_DRAW_COUNT = 300;
+    const auto& scored = localization_snapshot_.particle_filter.scored_particles;
+    const auto& weights = localization_snapshot_.particle_filter.scored_weights;
+    if (!scored.empty() && scored.size() == weights.size())
+    {
+      std::vector<std::size_t> order(scored.size());
+      std::iota(order.begin(), order.end(), 0);
+      std::sort(order.begin(), order.end(),
+                [&weights](std::size_t a, std::size_t b) { return weights[a] < weights[b]; });
+
+      const double min_weight = weights[order.front()];
+      const double range = weights[order.back()] - min_weight;
+      const std::size_t count = std::min(SCORED_DRAW_COUNT, order.size());
+      if (range > 0.0)
+      {
+        for (std::size_t k = 0; k < count; ++k)
+        {
+          std::size_t rank = order.size() - 1;
+          if (count > 1)
+          {
+            rank = k * (order.size() - 1) / (count - 1);
+          }
+          const std::size_t i = order[rank];
+          const double ratio = std::clamp((weights[i] - min_weight) / range, 0.0, 1.0);
+          const QColor color = QColor::fromHsvF((1.0 - ratio) * 240.0 / 360.0, 1.0, 1.0);
+          scene->addEllipse(
+              cvt_Print_xy(scored[i].x) - 2, cvt_Print_xy(scored[i].y) - 2, 4, 4,
+              QPen(color), QBrush(color));
+        }
+      }
+    }
+  }
+
   {
     const auto& inference = localization_snapshot_.inference;
 
-    // clsreg 재위치추정 후보: 청록 점(확률 클수록 크게)
     if (localization_config_.inference.reloc && inference.reloc.valid)
     {
       QPen cyanPen(QColor(0, 200, 200));
@@ -471,7 +529,6 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
       }
     }
 
-    // vision_imu 단일프레임 pose: 자홍 원 + 십자
     if (localization_config_.inference.mlp && inference.mlp.valid)
     {
       QPen magentaPen(QColor(255, 0, 255));
@@ -486,7 +543,6 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
     }
   }
 
-  // PRINT TIMESTAMP
   if (localization_snapshot_.robot.trail.size() > 0)
   {
     scene->addLine(
@@ -505,9 +561,6 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
     }
   }
 
-  // PRINT SIGHT
-
-  // 비전에서 측정된 특징점 표시
   for (int i = 0; i < FieldCoord::FEATURE_POINT_COUNT; i++)
   {
     if (!FieldCoord::ALL_POINTS[i].active)
@@ -519,10 +572,9 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
                         8, blackPen1);
     }
   }
-  // 로봇 기준 일정 거리 내 관측 특징점과 가장 가까운 로컬 맵 특징점 좌표 하이라이트
   {
-    constexpr double ROBOT_DETECT_RANGE_PX = 200.0; // 로봇~특징점 최대 거리 (픽셀, 조정 가능)
-    constexpr double MAP_MATCH_THRESHOLD_PX = 80.0; // 관측점~맵점 매칭 허용 오차 (픽셀)
+    constexpr double ROBOT_DETECT_RANGE_PX = 200.0;
+    constexpr double MAP_MATCH_THRESHOLD_PX = 80.0;
     QPen nearbyPen(Qt::cyan);
     nearbyPen.setWidth(3);
     QBrush nearbyBrush(Qt::cyan);
@@ -531,16 +583,13 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
     {
       auto &vp = localization_snapshot_.particle_filter.vision_points[i];
 
-      // 로봇에서 특징점까지의 거리 (픽셀)
       double dist_from_robot = sqrt(pow(vp.POINT_VEC_X, 2) + pow(vp.POINT_VEC_Y, 2));
       if (dist_from_robot > ROBOT_DETECT_RANGE_PX)
         continue;
 
-      // 관측 특징점의 절대 픽셀 좌표
       int obs_px = VisionPointUtils::worldX(vp);
       int obs_py = VisionPointUtils::worldY(vp);
 
-      // 같은 타입의 로컬 맵 특징점 중 가장 가까운 것 찾기
       double min_dis = MAP_MATCH_THRESHOLD_PX;
       int nearest_j = -1;
       for (int j = 0; j < FieldCoord::FEATURE_POINT_COUNT; j++)
@@ -594,7 +643,6 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
                       cvt_Print_xy(localization_snapshot_.particle_filter.filter.CIRCLE_R * 2), blackPen);
   }
 
-  // PRINT BEST ATTACK POSITION
   if (localization_snapshot_.master.master_best_position_attack_x != 0.0f || localization_snapshot_.master.master_best_position_attack_y != 0.0f)
   {
     int bpx = FieldCoord::toPixelX(localization_snapshot_.master.master_best_position_attack_x);
@@ -618,7 +666,6 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
     scene->addEllipse(bpx - 8, bpy - 8, 16, 16, purplePen, purpleFill);
   }
 
-  // PRINT MASTER TARGET
   if (localization_snapshot_.master.master_target_x != 0 || localization_snapshot_.master.master_target_y != 0)
   {
     scene->addLine(cvt_Print_xy(localization_snapshot_.master.master_target_x) + 4,
@@ -634,7 +681,6 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
                    cvt_Print_xy(localization_snapshot_.robot.pose.x), cvt_Print_xy(localization_snapshot_.robot.pose.y),
                    targetlinePen);
 
-    // angle_to_target 방향과 골대 라인 교차점 표시 (GO_KICK 중에만)
     if (!localization_snapshot_.master.master_move2ball_phase.empty())
     {
       float att = localization_snapshot_.master.master_angle_to_target;
@@ -662,7 +708,6 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
     }
   }
 
-  // PRINT ROBOT
   bool teammate_in_state_three = false;
   for (const auto& teammate : localization_snapshot_.world.teammates)
   {
@@ -721,12 +766,6 @@ void MainWindow::Print_Screen() // ui 출력, 200ms마다 실행, 공 출력은 
 
 void MainWindow::mouseReleaseEvent(QMouseEvent *e)
 {
-  // PRE CONDITION : mouseEvent, set_robot_flag, manual_ball_editing_
-  // POST CONDITION : qnode->robot0.n, qnode->ball.n master_target_n,
-  // purpose : set_object_flag가 활성화 되있고, 마우스 클릭 이벤트가 적용 시
-  // 해당 object를 마우스 위치로 이동 & 이동한 위치에 파티클 생성
-
-  // MainWindow 기준 마우스 위치 → ui->screen(QGraphicsView) 기준 → 씬 좌표
   QPointF scenePos;
   if (!mapToFieldScene(*ui->screen, *this, e->pos(), scenePos))
   {
@@ -753,10 +792,6 @@ void MainWindow::mouseReleaseEvent(QMouseEvent *e)
 
 void MainWindow::mouseMoveEvent(QMouseEvent *e)
 {
-  // PRE CONDITION : mouseEvent, set_robot_flag, manual_ball_editing_
-  // POST CONDITION : qnode->robot0.n, qnode->ball.n master_target_n,
-  // purpose : set_object_flag가 활성화 되있고, 마우스 이동 이벤트가 적용 시
-  // 해당 object를 마우스 위치로 이동 & 이동한 위치에 파티클 생성
   QPointF scenePos;
   if (!mapToFieldScene(*ui->screen, *this, e->pos(), scenePos))
   {
@@ -776,10 +811,6 @@ void MainWindow::mouseMoveEvent(QMouseEvent *e)
 QPolygonF MainWindow::create_Print_robot(
     float x, float y, float yaw_deg)
 {
-  // PRE CONDITION : robot.n, zoom(0.75)
-  // POST CONDITION : Robot_model_poly
-  // purpose : 로봇의 x, y, z좌표에 zoom값을 곱한 후 해당 값에 의한 폴리곤 생성
-
   float Robot_model_x = x;
   float Robot_model_y = y;
   float Robot_model_z = yaw_deg + 90;
@@ -821,26 +852,16 @@ QPolygonF MainWindow::create_Print_robot(
 
 int MainWindow::cvt_Print_xy(float target)
 {
-  // 좌표계가 픽셀 단위로 변경됨 - 변환 없이 그대로 반환
   return (int)target;
 }
 
 void MainWindow::on_btn_free_set_clicked()
 {
-  // PRE CONDITION : UI
-  // POST CONDITION : set_robot_flag
-  // purpose : set_robot_flag를 1로 설정
-
   set_robot_flag = 1;
 }
 void MainWindow::on_btn_objects_save_clicked()
 {
-  // PRE CONDITION : particle_range, robot0.odom_Nn
-  // POST CONDITION : param file
-  // purpose : 현재 적용되어있는 오도메트리 값을 입출력스트림을 통해 저장
-
-  // install/ 이 아니라 소스 트리에 쓴다. install/ 은 colcon 이 매 빌드마다
-  // 소스에서 다시 복사하는 곳이라 저장해도 곧 덮어써진다.
+  // Write to the source tree: install/ is recopied from source on every build.
   const std::string rel = robocup_localization::app::odomParamRelativePath();
   const std::string param =
       rel.empty() ? std::string()
@@ -864,7 +885,6 @@ void MainWindow::on_btn_objects_save_clicked()
   Last_Index_Num_OUT.close();
 }
 
-// 로봇 위치 설정 헬퍼 (좌표 설정 + 파티클 재생성 + 타임스탬프 초기화)
 static void setRobotPos(
     robocup_localization::app::LocalizationCommand* commands,
     float x, float y, float particle_range)
@@ -923,14 +943,6 @@ void MainWindow::on_btn_set_6_clicked()
 
 void MainWindow::on_btn_set_auto_clicked()
 {
-  // PRE CONDITION : UI
-  // POST CONDITION : qnode->robot0.N, qnode->master_target_x
-  // purpose : get in시 위치 자동 매크로
-  //
-  // 위치는 robocup_task_planner 의 state_pose.yaml 에서 온다 (런치가 이 노드의
-  // initial_pose 파라미터로 넘긴다). 예전에는 여기에 로봇별·진영별 좌표를 여덟
-  // 벌 적어 두었는데, 심판이 로봇을 놓는 자리는 하나뿐이라 추정기와 판단기가
-  // 서로 다른 값을 들고 있을 이유가 없다.
   using namespace FieldCoord;
 
   const auto pose = localization_config_.initial_pose.forSide(

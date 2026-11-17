@@ -14,7 +14,7 @@ std::mt19937& getRng()
     return gen;
 }
 
-}  // namespace
+}
 
 double gaussianRandom(double average, double stdev)
 {
@@ -35,4 +35,4 @@ void randomizeParticle(
     particle.yaw_deg = theta + gaussianRandom(0, THETA_INIT_SPREAD_DEG);
 }
 
-}  // namespace robocup_localization::core
+}

@@ -31,7 +31,6 @@ void WorldModel::updateVision(
     obstacle_age_seconds_.resize(obstacle_count, 0.0);
   }
 
-  // 이번 관측에서 다시 확인되지 않은 기존 장애물은 비활성화
   for (auto& obstacle : snapshot_.obstacles)
   {
     obstacle.nocnt = 1;
@@ -338,4 +337,4 @@ const TeammateObservation* WorldModel::closestTeammateWithBall() const
   return closest;
 }
 
-}  // namespace robocup_localization::core
+}

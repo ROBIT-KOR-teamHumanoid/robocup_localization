@@ -1,12 +1,11 @@
 /**:
   ros__parameters:
-    robot_feature: "adult" # "kids" or "adult"
-
     topic:
       sub_topics:
         imu: "Imu"
         vision: "/vision"
         vision_feature: "/vision_feature"
+
         ik: "ikcoordinate"
         game_controller: "gamecontroldata"
         udp: "udp"
@@ -15,10 +14,16 @@
       pub_topics:
         localization: "localization"
 
+    odometry:
+      # metric: real motion in cm (learned odometry, sim GT); odom coefficients unused.
+      # ik: IK command, scaled by the per-direction odom coefficients in the PARAM file.
+      input: "metric"
+
     particle_filter:
-      weight_update_threshold: 5.0
-      particle_nums: 8000
-      noise_enable: false
+      min_fit: 0.55              # best particle's geometric-mean likelihood per observation (0..1)
+      particle_nums: 2000
+      noise_enable: true
+      threads: 4                # MCL weighting threads (0 = all cores)
 
     rate:
       ros_spin_hz: 20.0
@@ -26,23 +31,24 @@
       ui_render_hz: 20.0
 
     inference:
-      mlp_enable: true          # vision_imu.onnx: 단일프레임 pose 추정
-      reloc_enable: false       # clsreg.onnx: 재위치추정 후보 격자
+      mlp_enable: true
+      reloc_enable: false
    
       mlp_model: "model/vision_imu.onnx"
       reloc_model: "model/clsreg.onnx"
-      reloc_topk: 30             # 상위 확률 셀 개수
+      reloc_topk: 30
 
-      feature_min: 2
-      sign_right: -1.0          # obs 좌표 부호
-      sign_forward: 1.0
-      yaw_offset_deg: 90.0      
-      pan_yaw_sign: 1.0        # 카메라 pan 을 yaw 에 더할 때의 부호.
-                                #   특징점 회전은 부호 확정, yaw 쪽만 실측 확인 필요
+    latency_compensation:
+      enable: true              # rotate features with the IMU yaw at image capture time (needs vision_feature stamp)
+      history_sec: 1.0          # IMU yaw history kept for lookup
+      max_age_sec: 0.5          # drop features older than this
 
     kidnap:
-      enable: true             # 먼저 로그로 관찰한 뒤 켤 것
-      disagree_dist_m: 2.0      # 이만큼 벌어진 프레임만 센다.
-      cluster_radius_m: 0.5     # 누적된 MLP 출력들이 모여 있어야 하는 반경
-      min_frames: 15             # 판정에 필요한 최소 프레임 수
-      cooldown_sec: 5.0         # 판정 후 재발동까지 대기 시간
+      enable: true
+      disagree_dist_m: 2.5      # must be >= MclTune::MAX_JUMP_M (2.44 on LARGE)
+      cluster_radius_m: 0.5
+      min_frames: 15
+      cooldown_sec: 5.0         # also applied after a rejection
+      verify: true
+      verify_ratio: 1.5         # candidate score >= current score x this
+      verify_min_score: 0.3     # min candidate score (mean weight per observation)

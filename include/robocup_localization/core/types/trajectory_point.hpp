@@ -9,4 +9,4 @@ struct TrajectoryPoint
   int Y = 0;
 };
 
-}  // namespace robocup_localization::core
+}

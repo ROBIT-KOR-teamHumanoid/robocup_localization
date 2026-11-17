@@ -3,6 +3,11 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <limits>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 #include "robocup_localization/core/mcl/random_util.hpp"
 
@@ -14,7 +19,7 @@ void MclPipeline::clearObservations()
     vision_point_vect.clear();
     particle_weight.clear();
     vision_data_count = 0;
-    vision_data_size  = 0;
+    vision_frame_count = 0;
 }
 
 MeasurementContext MclPipeline::buildContext(const MclInput& input)
@@ -35,8 +40,8 @@ MeasurementContext MclPipeline::buildContext(const MclInput& input)
     return context;
 }
 
-// 시야 안에 있는데 이번에 안 잡힌 랜드마크를 가짜 관측으로 만들어 다음
-// 사이클에 넣는다. 관측이 부족할 때 파티클이 흩어지는 걸 막는 장치.
+// Visible-but-undetected landmarks become synthetic observations for the next cycle,
+// which keeps particles from scattering when observations are sparse.
 void MclPipeline::appendSyntheticObservations(
     const MclInput& input, const MclResult& result)
 {
@@ -63,7 +68,7 @@ void MclPipeline::appendSyntheticObservations(
     particle_weight.clear();
     vision_point_vect.clear();
     vision_data_count = 0;
-    vision_data_size  = 0;
+    vision_frame_count = 0;
 
     for (int i = 0; i < FieldCoord::FEATURE_POINT_COUNT; ++i)
     {
@@ -125,10 +130,10 @@ MclResult MclPipeline::run(
 
     const MeasurementContext context = buildContext(input);
 
-    // 관측 대비 매칭이 빈약하면 파티클을 로봇 주변으로 다시 뿌린다.
+    // Sparse matching: respawn particles around robot0.
     const bool small_matching =
-        vision_data_count > 0 &&
-        vision_data_size / vision_data_count <= 1;
+        vision_frame_count > 0 &&
+        vision_data_count <= vision_frame_count;
 
     if (small_matching)
     {
@@ -143,34 +148,80 @@ MclResult MclPipeline::run(
     filter.setCircle(input.robot_yaw_deg, vision_point_vect);
     filter.dropUnmatched(vision_point_vect);
 
-    // ── 2단계: 가중치 계산 ─────────────────────────────────
+    // Every particle carries the IMU yaw, so the heading-only work is shared by all of them.
+    const PreparedObservations prepared = MeasurementModel::prepare(
+        vision_point_vect, particles[0].yaw_deg, filter, context);
+
+    std::vector<double> log_weights(particle_count);
+    // Set per loop: omp_set_num_threads() would only affect the thread that called it.
+    int threads = input.threads;
+#ifdef _OPENMP
+    if (threads <= 0)
+    {
+        threads = omp_get_max_threads();
+    }
+#endif
+#pragma omp parallel for schedule(static) num_threads(threads)
+    for (int i = 0; i < particle_count; ++i)
+    {
+        if (particles[i].yaw_deg == prepared.yaw_deg)
+        {
+            log_weights[i] = MeasurementModel::logLikelihood(
+                static_cast<int>(particles[i].x), static_cast<int>(particles[i].y), prepared);
+        }
+        else
+        {
+            log_weights[i] = MeasurementModel::logLikelihood(
+                particles[i], vision_point_vect, filter, context);
+        }
+    }
+
+    double max_log_weight = -std::numeric_limits<double>::infinity();
+    for (int i = 0; i < particle_count; ++i)
+    {
+        max_log_weight = std::max(max_log_weight, log_weights[i]);
+    }
+
+    // Relative to the best particle (best = 1) so the product never underflows.
     particle_weight.clear();
     particle_weight.reserve(particles.size());
+    double total_weight = 0.0;
     for (int i = 0; i < particle_count; ++i)
     {
         MEASUREMENT measurement;
         measurement.NUM = i;
-        measurement.WEIGHT = MeasurementModel::particleWeight(
-            particles[i], vision_point_vect, filter, context);
+        measurement.WEIGHT = std::exp(log_weights[i] - max_log_weight);
+        total_weight += measurement.WEIGHT;
         particle_weight.push_back(measurement);
     }
 
-    double total_weight = 0.0;
-    for (const auto& measurement : particle_weight)
+    // Geometric-mean likelihood per observation of the best particle, in (0, 1].
+    double confidence_sum = 0.0;
+    for (const auto& observation : vision_point_vect)
     {
-        total_weight += measurement.WEIGHT;
+        confidence_sum += observation.CONFIDENCE;
+    }
+    double best_fit = 0.0;
+    if (confidence_sum > 0.0)
+    {
+        best_fit = std::exp(max_log_weight / confidence_sum);
     }
 
     std::sort(particle_weight.begin(), particle_weight.end(), sort_return);
 
-    if (total_weight > 0 &&
-        particle_weight.front().WEIGHT > input.weight_update_threshold)
+    scored_particles = particles;
+    scored_weights.assign(particles.size(), 0.0);
+    for (const auto& measurement : particle_weight)
     {
-        std::printf("[LocalNode] %sMATCHING!! : %f\n",
-                    small_matching ? "SMALL " : "",
-                    particle_weight.front().WEIGHT);
+        scored_weights[measurement.NUM] = measurement.WEIGHT;
+    }
 
-        // ── 포즈 추정: 상위 N개 가중평균 ────────────────────
+    if (total_weight > 0 && best_fit > input.min_fit)
+    {
+        std::printf("[LocalNode] %sMATCHING!! fit %f\n",
+                    small_matching ? "SMALL " : "",
+                    best_fit);
+
         const int top_n = 1;
         double sum_w = 0.0;
         for (int i = 0; i < top_n; ++i)
@@ -188,32 +239,31 @@ MclResult MclPipeline::run(
             wy += normalized_weight * particles[particle_weight[i].NUM].y;
         }
 
+        // Gates are in meters with per-axis scales; x/y px per meter differ on LARGE.
         double var_x = 0.0;
         double var_y = 0.0;
         for (int i = 0; i < top_n; ++i)
         {
-            const double dx = particles[particle_weight[i].NUM].x - wx;
-            const double dy = particles[particle_weight[i].NUM].y - wy;
+            const double dx = (particles[particle_weight[i].NUM].x - wx) / FieldCoord::PX_PER_M_X;
+            const double dy = (particles[particle_weight[i].NUM].y - wy) / FieldCoord::PX_PER_M_Y;
             var_x += dx * dx;
             var_y += dy * dy;
         }
         var_x /= top_n;
         var_y /= top_n;
-        const double std_px = std::sqrt(var_x + var_y);
+        const double std_m = std::sqrt(var_x + var_y);
 
-        // ── 채택 게이트: 너무 작은/큰 점프, 너무 퍼진 분포는 reject ──
-        const double jump = std::sqrt(
-            std::pow(wx - input.robot_x, 2) +
-            std::pow(wy - input.robot_y, 2));
-        if (jump >= MIN_JUMP_PX && jump < MAX_JUMP_PX &&
-            std_px < MAX_SPREAD_PX)
+        const double jump_m = std::hypot(
+            (wx - input.robot_x) / FieldCoord::PX_PER_M_X,
+            (wy - input.robot_y) / FieldCoord::PX_PER_M_Y);
+        if (jump_m >= MIN_JUMP_M && jump_m < MAX_JUMP_M &&
+            std_m < MAX_SPREAD_M)
         {
             result.robot_x = static_cast<float>(wx);
             result.robot_y = static_cast<float>(wy);
             result.pose_updated = true;
         }
 
-        // ── 3단계: 리샘플링 ────────────────────────────────
         const double resample_noise = input.noise_enabled
             ? input.particle_range * 0.1
             : 0.0;
@@ -222,7 +272,7 @@ MclResult MclPipeline::run(
     }
     else
     {
-        std::printf("FAIL!! : %f\n", particle_weight.front().WEIGHT);
+        std::printf("FAIL!! fit %f\n", best_fit);
     }
 
     appendSyntheticObservations(input, result);
@@ -230,4 +280,4 @@ MclResult MclPipeline::run(
     return result;
 }
 
-}  // namespace robocup_localization::core
+}

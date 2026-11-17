@@ -30,12 +30,6 @@ void ParticleFilter::setParticleRange(float particle_range)
   config_.particle_range = particle_range;
 }
 
-void ParticleFilter::setObservationFilterDistance(double distance_m)
-{
-  std::lock_guard<std::mutex> lock(mutex_);
-  pipeline_.filter.OBS_FILTER_DIST_M = distance_m;
-}
-
 void ParticleFilter::setBallObservation(
     double relative_x_mm, double relative_y_mm)
 {
@@ -68,26 +62,19 @@ void ParticleFilter::submitFeatures(
     pipeline_.valid_observation = false;
     pipeline_.vision_point_vect.clear();
     pipeline_.vision_data_count = 0;
-    pipeline_.vision_data_size = 0;
+    pipeline_.vision_frame_count = 0;
     return;
   }
 
   pipeline_.vision_data_count +=
       static_cast<int>(observations.size());
-  pipeline_.vision_data_size +=
-      static_cast<int>(observations.size());
+  pipeline_.vision_frame_count += 1;
   pipeline_.vision_point_vect.insert(
       pipeline_.vision_point_vect.end(),
       std::make_move_iterator(observations.begin()),
       std::make_move_iterator(observations.end()));
-  // 여기서 setCircle 을 부르지 않는다.
-  //   · MCL 계산에는 불필요하다 — MclPipeline::run 이 dropUnmatched/가중치 계산
-  //     직전에 setCircle 을 다시 부른다(같은 누적 버퍼로).
-  //   · CIRCLE_CENTER/CIRCLE_R 은 UI 가 그대로 그리는 멤버라(main_window.cpp),
-  //     한 사이클에 여러 번 다른 값으로 덮어쓰면 화면의 원이 튄다. 이 호출은
-  //     **아직 correct 가 돌지 않은 누적 중간 상태**로 원을 그리게 만들었다.
-  //   남은 writer 는 두 개다: checkLocalPoint(부분집합, start=synthetic_cnt) 와
-  //   run() 의 setCircle(전체). 둘도 서로 다른 원이라 UI 는 여전히 흔들릴 수 있다.
+  // No setCircle here: run() recomputes it, and the UI draws CIRCLE_* directly,
+  // so updating it mid-accumulation makes the circle jump.
   pipeline_.valid_observation = true;
 }
 
@@ -101,8 +88,15 @@ MclResult ParticleFilter::correct(
   input.robot_y = robot_y;
   input.robot_yaw_deg = robot_yaw_deg;
   input.particle_range = config_.particle_range;
-  input.weight_update_threshold = config_.weight_update_threshold;
+  input.min_fit = config_.min_fit;
   input.noise_enabled = config_.noise_enabled;
+  input.threads = config_.threads;
+
+  // Heading is not estimated: every particle takes the IMU yaw, so only position is filtered.
+  for (auto& particle : particles_)
+  {
+    particle.yaw_deg = robot_yaw_deg;
+  }
 
   return pipeline_.run(particles_, input);
 }
@@ -120,7 +114,6 @@ void ParticleFilter::applyMotion(const ParticleMotion& motion)
         particle.x += gaussianRandom(0.0, 0.1);
         particle.y += gaussianRandom(0.0, 0.1);
       }
-      particle.yaw_deg += motion.yaw_delta_deg;
     }
     else if (config_.noise_enabled)
     {
@@ -130,8 +123,6 @@ void ParticleFilter::applyMotion(const ParticleMotion& motion)
           gaussianRandom(0.0, motion.direction_stddev);
       particle.x += translation * std::cos(direction);
       particle.y += translation * std::sin(direction);
-      particle.yaw_deg += motion.yaw_delta_deg +
-          gaussianRandom(0.0, motion.yaw_stddev);
     }
     else
     {
@@ -139,16 +130,6 @@ void ParticleFilter::applyMotion(const ParticleMotion& motion)
           motion.translation_px * std::cos(motion.world_direction_rad);
       particle.y +=
           motion.translation_px * std::sin(motion.world_direction_rad);
-      particle.yaw_deg += motion.yaw_delta_deg;
-    }
-
-    while (particle.yaw_deg > 180.0f)
-    {
-      particle.yaw_deg -= 360.0f;
-    }
-    while (particle.yaw_deg < -180.0f)
-    {
-      particle.yaw_deg += 360.0f;
     }
 
     particle.x = std::clamp(
@@ -171,6 +152,9 @@ void ParticleFilter::randomize(
   {
     randomizeParticle(particle, x, y, range, yaw_deg);
   }
+  // The last weights describe particles that no longer exist.
+  pipeline_.scored_particles.clear();
+  pipeline_.scored_weights.clear();
 }
 
 void ParticleFilter::mirrorY(float map_height)
@@ -196,18 +180,23 @@ void ParticleFilter::clearVisionPoints()
   std::lock_guard<std::mutex> lock(mutex_);
   pipeline_.vision_point_vect.clear();
   pipeline_.vision_data_count = 0;
-  pipeline_.vision_data_size = 0;
+  pipeline_.vision_frame_count = 0;
   pipeline_.valid_observation = false;
 }
 
 ParticleFilterSnapshot ParticleFilter::snapshot() const
 {
-  std::lock_guard<std::mutex> lock(mutex_);
-  ParticleFilterSnapshot result;
-  result.particles = particles_;
-  result.vision_points = pipeline_.vision_point_vect;
-  result.filter = pipeline_.filter;
-  return result;
+  std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
+  std::lock_guard<std::mutex> cache_lock(snapshot_cache_mutex_);
+  if (lock.owns_lock())
+  {
+    snapshot_cache_.particles = particles_;
+    snapshot_cache_.vision_points = pipeline_.vision_point_vect;
+    snapshot_cache_.filter = pipeline_.filter;
+    snapshot_cache_.scored_particles = pipeline_.scored_particles;
+    snapshot_cache_.scored_weights = pipeline_.scored_weights;
+  }
+  return snapshot_cache_;
 }
 
 std::size_t ParticleFilter::particleCount() const
@@ -216,4 +205,4 @@ std::size_t ParticleFilter::particleCount() const
   return particles_.size();
 }
 
-}  // namespace robocup_localization::core
+}
