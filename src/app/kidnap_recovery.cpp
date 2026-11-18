@@ -5,7 +5,7 @@
 #include <limits>
 #include <utility>
 
-#include "field_coordinate/field_coordinate.hpp"
+#include "robocup_localization/app/pose_score.hpp"
 #include "robocup_localization/core/mcl/measurement_model.hpp"
 
 namespace robocup_localization::app
@@ -17,10 +17,6 @@ double distance(double ax, double ay, double bx, double by)
 {
   return std::hypot(ax - bx, ay - by);
 }
-
-// 5x5 grid search around each pose to absorb MLP error and PF jitter.
-constexpr double SEARCH_RADIUS_M = 0.5;
-constexpr int SEARCH_HALF_STEPS = 2;
 }
 
 void KidnapRecovery::configure(const KidnapRecoveryConfig& config)
@@ -35,6 +31,58 @@ void KidnapRecovery::reset()
   frames_.clear();
   cooldown_until_sec_ = 0.0;
   cooldown_active_ = false;
+}
+
+void KidnapRecovery::dropExpired(double now_sec)
+{
+  std::size_t first_live = 0;
+  while (first_live < samples_.size() &&
+         now_sec - samples_[first_live].t_sec > config_.window_sec)
+  {
+    ++first_live;
+  }
+  if (first_live > 0)
+  {
+    samples_.erase(samples_.begin(), samples_.begin() + first_live);
+    frames_.erase(frames_.begin(), frames_.begin() + first_live);
+  }
+}
+
+std::vector<std::size_t> KidnapRecovery::largestCluster() const
+{
+  std::vector<std::size_t> best;
+  for (std::size_t seed = 0; seed < samples_.size(); ++seed)
+  {
+    std::vector<std::size_t> members;
+    for (std::size_t i = 0; i < samples_.size(); ++i)
+    {
+      if (distance(samples_[i].x_m, samples_[i].y_m,
+                   samples_[seed].x_m, samples_[seed].y_m) <= config_.cluster_radius_m)
+      {
+        members.push_back(i);
+      }
+    }
+    if (members.size() > best.size())
+    {
+      best = std::move(members);
+    }
+  }
+  return best;
+}
+
+void KidnapRecovery::keepOnly(const std::vector<std::size_t>& indices)
+{
+  std::vector<Sample> samples;
+  std::vector<KidnapFrame> frames;
+  samples.reserve(indices.size());
+  frames.reserve(indices.size());
+  for (const std::size_t i : indices)
+  {
+    samples.push_back(samples_[i]);
+    frames.push_back(std::move(frames_[i]));
+  }
+  samples_ = std::move(samples);
+  frames_ = std::move(frames);
 }
 
 KidnapRecovery::Sample KidnapRecovery::centroid() const
@@ -82,23 +130,9 @@ double KidnapRecovery::bestLogLikelihood(
   core::MeasurementContext context;
   context.robot_y_sign = frame.robot_y_sign;
 
-  const double step_m =
-      SEARCH_RADIUS_M / static_cast<double>(SEARCH_HALF_STEPS);
   const core::PreparedObservations prepared = core::MeasurementModel::prepare(
       frame.observations, static_cast<float>(frame.yaw_deg), landmarks_, context);
-
-  double best = -std::numeric_limits<double>::infinity();
-  for (int ix = -SEARCH_HALF_STEPS; ix <= SEARCH_HALF_STEPS; ++ix)
-  {
-    for (int iy = -SEARCH_HALF_STEPS; iy <= SEARCH_HALF_STEPS; ++iy)
-    {
-      const double log_weight = core::MeasurementModel::logLikelihood(
-          FieldCoord::toPixelX(x_m + ix * step_m), FieldCoord::toPixelY(y_m + iy * step_m),
-          prepared);
-      best = std::max(best, log_weight);
-    }
-  }
-  return best;
+  return bestPoseLogLikelihood(prepared, x_m, y_m);
 }
 
 void KidnapRecovery::verify(KidnapVerdict& verdict) const
@@ -175,13 +209,15 @@ KidnapVerdict KidnapRecovery::update(double now_sec, KidnapFrame frame)
     cooldown_active_ = false;
   }
 
+  dropExpired(now_sec);
+
+  // A blind frame says nothing either way, so it neither counts nor resets.
   if (!frame.mlp_valid)
   {
-    samples_.clear();
-    frames_.clear();
     return verdict;
   }
 
+  // An agreeing estimate is evidence that the PF is fine.
   if (distance(frame.pf_x_m, frame.pf_y_m, frame.mlp_x_m, frame.mlp_y_m) <
       config_.disagree_dist_m)
   {
@@ -190,24 +226,20 @@ KidnapVerdict KidnapRecovery::update(double now_sec, KidnapFrame frame)
     return verdict;
   }
 
-  samples_.push_back(Sample{frame.mlp_x_m, frame.mlp_y_m});
+  samples_.push_back(Sample{now_sec, frame.mlp_x_m, frame.mlp_y_m});
   frames_.push_back(std::move(frame));
-  // Not clustered with earlier samples: one of them is wrong, so restart from this one.
-  if (spread() > config_.cluster_radius_m)
-  {
-    const Sample latest_sample = samples_.back();
-    KidnapFrame latest_frame = std::move(frames_.back());
-    samples_.clear();
-    frames_.clear();
-    samples_.push_back(latest_sample);
-    frames_.push_back(std::move(latest_frame));
-    return verdict;
-  }
 
   if (static_cast<int>(samples_.size()) < config_.min_frames)
   {
     return verdict;
   }
+
+  std::vector<std::size_t> cluster = largestCluster();
+  if (static_cast<int>(cluster.size()) < config_.min_frames)
+  {
+    return verdict;
+  }
+  keepOnly(cluster);
 
   const Sample center = centroid();
   verdict.x_m = center.x_m;

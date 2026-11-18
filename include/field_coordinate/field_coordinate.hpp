@@ -8,6 +8,8 @@
 namespace FieldCoord
 {
 #if defined(FIELD_SMALL)
+  // 학습 모델 폴더 이름 (model/<NAME>/).
+  constexpr const char* NAME = "small";
   constexpr double A = 9.0;
   constexpr double B = 6.0;
   constexpr double C = 0.7;
@@ -24,6 +26,8 @@ namespace FieldCoord
   constexpr double MARK_SZ = 0.10;
 
 #elif defined(FIELD_MIDDLE)
+  // 학습 모델 폴더 이름 (model/<NAME>/).
+  constexpr const char* NAME = "middle";
   constexpr double A = 14.0;
   constexpr double B = 9.0;
   constexpr double C = 1.2;
@@ -40,6 +44,8 @@ namespace FieldCoord
   constexpr double MARK_SZ = 0.10;
 
 #elif defined(FIELD_LARGE)
+  // 학습 모델 폴더 이름 (model/<NAME>/).
+  constexpr const char* NAME = "large";
   constexpr double A = 22.0;
   constexpr double B = 14.0;
   constexpr double C = 1.0;

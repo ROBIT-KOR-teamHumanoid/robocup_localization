@@ -18,7 +18,12 @@ struct KidnapRecoveryConfig
 
   double cluster_radius_m = 0.5;
 
-  int min_frames = 5;
+  // Valid MLP frames needed inside the window. Not consecutive: only ~13% of frames see
+  // >= feature_min landmarks and they flicker, so a consecutive streak rarely forms.
+  int min_frames = 10;
+
+  // Disagreeing samples older than this are dropped; blind frames no longer reset the count.
+  double window_sec = 6.0;
 
   double cooldown_sec = 3.0;
 
@@ -78,9 +83,18 @@ public:
 private:
   struct Sample
   {
+    double t_sec = 0.0;
     double x_m = 0.0;
     double y_m = 0.0;
   };
+
+  void dropExpired(double now_sec);
+
+  // Indices of the largest group of samples within cluster_radius_m of one sample.
+  // A stray estimate (symmetric confusion, noise) is left out instead of resetting.
+  std::vector<std::size_t> largestCluster() const;
+
+  void keepOnly(const std::vector<std::size_t>& indices);
 
   Sample centroid() const;
 

@@ -324,17 +324,29 @@ void QNode::runInference(const InferenceJob& job)
     const auto obs = inference_encoder_.buildObs(features, job.yaw_deg);
 
     n_valid = robocup_localization::inference::countValidSlots(obs);
-    if (n_valid >= inference_config_.feature_min)
+    if (n_valid >= inference_config_.feature_min &&
+        inference_config_.mlp_enable && inference_.mlpReady())
     {
-      if (inference_config_.mlp_enable && inference_.mlpReady())
-      {
-        mlp = inference_.runMlp(obs);
-      }
-      if (inference_config_.reloc_enable && inference_.relocReady())
-      {
-        reloc = inference_.runReloc(obs);
-      }
+      mlp = inference_.runMlp(obs);
       ran = true;
+    }
+    // Separate gate: ClsReg is trained on feature_min=1 and is most useful exactly
+    // where the MLP is skipped (one landmark, ambiguous position).
+    if (n_valid >= inference_config_.reloc_feature_min &&
+        inference_config_.reloc_enable && inference_.relocReady())
+    {
+      reloc = inference_.runReloc(obs);
+      ran = true;
+    }
+  }
+
+  std::vector<robocup_localization::app::RelocProposal> reloc_proposals;
+  if (reloc.valid)
+  {
+    reloc_proposals.reserve(reloc.candidates.size());
+    for (const auto& candidate : reloc.candidates)
+    {
+      reloc_proposals.push_back({candidate.x_m, candidate.y_m});
     }
   }
 
@@ -354,64 +366,109 @@ void QNode::runInference(const InferenceJob& job)
     mlp_pub_->publish(mlp_msg);
   }
 
-  // Skipped frames must reach here too so invalid frames break the streak; runs on the
-  // inference thread so each MLP estimate is counted exactly once.
-  if (kidnap_.config().enable)
+  // Skipped frames reach here too so old samples expire on time; runs on the
+  // inference thread so each estimate is counted exactly once.
+  bool initial_state;
   {
-    bool initial_state;
+    std::lock_guard<std::mutex> lock(game_state_mutex_);
+    initial_state =
+        game_state_.state == robocup_localization::app::STATE_INITIAL;
+  }
+  // MCL is paused in INITIAL, so disagreement with it means nothing.
+  if (initial_state)
+  {
+    kidnap_.reset();
+    reloc_recovery_.reset();
+  }
+
+  const double now_sec = node->get_clock()->now().seconds();
+
+  if (kidnap_.config().enable && !initial_state)
+  {
+    float pf_x_px;
+    float pf_y_px;
     {
-      std::lock_guard<std::mutex> lock(game_state_mutex_);
-      initial_state =
-          game_state_.state == robocup_localization::app::STATE_INITIAL;
+      std::lock_guard<std::mutex> lock(robot0_mutex);
+      pf_x_px = robot0.x;
+      pf_y_px = robot0.y;
     }
 
-    // MCL is paused in INITIAL, so PF-MLP disagreement means nothing.
-    if (initial_state)
+    robocup_localization::app::KidnapFrame frame;
+    frame.pf_x_m = FieldCoord::toFieldX(pf_x_px);
+    frame.pf_y_m = FieldCoord::toFieldY(pf_y_px);
+    frame.mlp_valid = mlp.valid;
+    frame.mlp_x_m = mlp.x_m;
+    frame.mlp_y_m = mlp.y_m;
+    frame.yaw_deg = job.yaw_deg;
+    frame.robot_y_sign = localization_engine_.robotYSign();
+    if (mlp.valid && job.msg)
     {
+      frame.observations = buildVisionPoints(
+          *job.msg, pf_x_px, pf_y_px, static_cast<float>(job.yaw_deg));
+    }
+
+    const auto verdict = kidnap_.update(now_sec, std::move(frame));
+
+    if (verdict.kidnapped)
+    {
+      applyKidnapVerdict(verdict);
+      reloc_recovery_.holdOff(now_sec);
+    }
+    else if (verdict.rejected)
+    {
+      RCLCPP_WARN(
+          node->get_logger(),
+          "[kidnap] 기각: 후보 (%.2f, %.2f) m  점수 %.3f vs 현재 %.3f "
+          "(필요: >= %.3f 이고 >= x%.2f)  frames=%d",
+          verdict.x_m, verdict.y_m,
+          verdict.candidate_score, verdict.current_score,
+          kidnap_.config().verify_min_score, kidnap_.config().verify_ratio,
+          verdict.frames);
+    }
+  }
+
+  // Every frame goes in, blind ones too, so the window ages on wall time.
+  if (reloc_recovery_.config().enable && !initial_state)
+  {
+    robocup_localization::app::RelocFrame frame;
+    float pf_x_px;
+    float pf_y_px;
+    {
+      std::lock_guard<std::mutex> lock(robot0_mutex);
+      pf_x_px = robot0.x;
+      pf_y_px = robot0.y;
+      frame.odom_x_m = odom_x_m_;
+      frame.odom_y_m = odom_y_m_;
+    }
+    frame.pf_x_m = FieldCoord::toFieldX(pf_x_px);
+    frame.pf_y_m = FieldCoord::toFieldY(pf_y_px);
+    frame.yaw_deg = job.yaw_deg;
+    frame.robot_y_sign = localization_engine_.robotYSign();
+    if (job.has_features && job.msg)
+    {
+      frame.observations = buildVisionPoints(
+          *job.msg, pf_x_px, pf_y_px, static_cast<float>(job.yaw_deg));
+    }
+    frame.proposals = std::move(reloc_proposals);
+
+    const auto verdict = reloc_recovery_.update(now_sec, std::move(frame));
+    if (verdict.relocalize)
+    {
+      const auto [old_x_m, old_y_m] = teleportRobot(verdict.x_m, verdict.y_m);
       kidnap_.reset();
+      RCLCPP_WARN(
+          node->get_logger(),
+          "[reloc] (%.2f, %.2f) -> (%.2f, %.2f) m  점수 %.3f vs 현재 %.3f  후보 %d개",
+          old_x_m, old_y_m, verdict.x_m, verdict.y_m,
+          verdict.candidate_score, verdict.current_score, verdict.proposals);
     }
-    else
+    else if (verdict.lost)
     {
-      float pf_x_px;
-      float pf_y_px;
-      {
-        std::lock_guard<std::mutex> lock(robot0_mutex);
-        pf_x_px = robot0.x;
-        pf_y_px = robot0.y;
-      }
-
-      robocup_localization::app::KidnapFrame frame;
-      frame.pf_x_m = FieldCoord::toFieldX(pf_x_px);
-      frame.pf_y_m = FieldCoord::toFieldY(pf_y_px);
-      frame.mlp_valid = mlp.valid;
-      frame.mlp_x_m = mlp.x_m;
-      frame.mlp_y_m = mlp.y_m;
-      frame.yaw_deg = job.yaw_deg;
-      frame.robot_y_sign = localization_engine_.robotYSign();
-      if (mlp.valid && job.msg)
-      {
-        frame.observations = buildVisionPoints(
-            *job.msg, pf_x_px, pf_y_px, static_cast<float>(job.yaw_deg));
-      }
-
-      const auto verdict = kidnap_.update(
-          node->get_clock()->now().seconds(), std::move(frame));
-
-      if (verdict.kidnapped)
-      {
-        applyKidnapVerdict(verdict);
-      }
-      else if (verdict.rejected)
-      {
-        RCLCPP_WARN(
-            node->get_logger(),
-            "[kidnap] 기각: 후보 (%.2f, %.2f) m  점수 %.3f vs 현재 %.3f "
-            "(필요: >= %.3f 이고 >= x%.2f)  frames=%d",
-            verdict.x_m, verdict.y_m,
-            verdict.candidate_score, verdict.current_score,
-            kidnap_.config().verify_min_score, kidnap_.config().verify_ratio,
-            verdict.frames);
-      }
+      RCLCPP_WARN_THROTTLE(
+          node->get_logger(), *node->get_clock(), 2000,
+          "[reloc] 위치 불일치(현재 %.3f < %.2f), 채택할 후보 없음: 최고 %.3f (후보 %d개)",
+          verdict.current_score, reloc_recovery_.config().lost_fit,
+          verdict.candidate_score, verdict.proposals);
     }
   }
 
@@ -437,11 +494,10 @@ void QNode::runInference(const InferenceJob& job)
       "[inference] %.2f ms, drop=%lu", elapsed.count(), dropped);
 }
 
-void QNode::applyKidnapVerdict(
-    const robocup_localization::app::KidnapVerdict& verdict)
+std::pair<double, double> QNode::teleportRobot(double x_m, double y_m)
 {
-  const float x_px = static_cast<float>(FieldCoord::toPixelX(verdict.x_m));
-  const float y_px = static_cast<float>(FieldCoord::toPixelY(verdict.y_m));
+  const float x_px = static_cast<float>(FieldCoord::toPixelX(x_m));
+  const float y_px = static_cast<float>(FieldCoord::toPixelY(y_m));
 
   float yaw_deg;
   float old_x;
@@ -453,17 +509,23 @@ void QNode::applyKidnapVerdict(
     robot0.x = x_px;
     robot0.y = y_px;
     robot0.trail.clear();
-    yaw_deg = robot0.yaw_deg;  // heading comes from the IMU; the MLP gives position only
+    yaw_deg = robot0.yaw_deg;  // heading comes from the IMU; the models give position only
   }
 
   // Otherwise particles left at the old pose pull the estimate back.
   resetParticles(x_px, y_px, yaw_deg, particle_range_);
+  return {FieldCoord::toFieldX(old_x), FieldCoord::toFieldY(old_y)};
+}
 
+void QNode::applyKidnapVerdict(
+    const robocup_localization::app::KidnapVerdict& verdict)
+{
+  const auto [old_x_m, old_y_m] = teleportRobot(verdict.x_m, verdict.y_m);
   RCLCPP_WARN(
       node->get_logger(),
       "[kidnap] (%.2f, %.2f) -> (%.2f, %.2f) m  frames=%d spread=%.2fm  "
       "점수 %.3f vs 현재 %.3f",
-      FieldCoord::toFieldX(old_x), FieldCoord::toFieldY(old_y),
+      old_x_m, old_y_m,
       verdict.x_m, verdict.y_m, verdict.frames, verdict.spread_m,
       verdict.candidate_score, verdict.current_score);
 }
@@ -864,6 +926,9 @@ void QNode::ikCallback(const humanoid_interfaces::msg::IkCoordMsg::SharedPtr msg
 
     ik_dx = robot0.x - ik_prev_x;
     ik_dy = robot0.y - ik_prev_y;
+    // Map y grows downward; field meters for the reloc track.
+    odom_x_m_ += ik_dx / FieldCoord::PX_PER_M_X;
+    odom_y_m_ -= ik_dy / FieldCoord::PX_PER_M_Y;
   }
 
   const double ik_trans = std::sqrt(ik_dx * ik_dx + ik_dy * ik_dy);

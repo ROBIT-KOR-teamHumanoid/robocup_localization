@@ -31,6 +31,7 @@
 #include "robocup_localization/app/localization_engine.hpp"
 #include "robocup_localization/app/localization_snapshot.hpp"
 #include "robocup_localization/app/kidnap_recovery.hpp"
+#include "robocup_localization/app/reloc_recovery.hpp"
 #include "robocup_localization/inference/observation_encoder.hpp"
 #include "robocup_localization/inference/onnx_localizer.hpp"
 
@@ -83,6 +84,9 @@ private:
   mutable std::mutex robot0_mutex;
   // Guarded by robot0_mutex, like robot0.yaw_deg.
   robocup_localization::core::YawHistory yaw_history_;
+  // Cumulative odometry in field meters (robot0_mutex); teleports are not motion.
+  double odom_x_m_ = 0.0;
+  double odom_y_m_ = 0.0;
   bool latency_compensation_ = true;
   std::int64_t max_feature_age_ns_ = 500000000LL;
   robocup_localization::app::MasterStateSnapshot master_state_;
@@ -114,7 +118,10 @@ private:
 
   // Touched only by the inference thread, so no lock.
   robocup_localization::app::KidnapRecovery kidnap_;
+  robocup_localization::app::RelocRecovery reloc_recovery_;
   void applyKidnapVerdict(const robocup_localization::app::KidnapVerdict& verdict);
+  // Moves robot0 and respawns the particles there; returns the previous pose (m).
+  std::pair<double, double> teleportRobot(double x_m, double y_m);
 
   std::thread inference_thread_;
   std::condition_variable inference_cv_;

@@ -32,11 +32,13 @@
 
     inference:
       mlp_enable: true
-      reloc_enable: false
-   
-      mlp_model: "model/vision_imu.onnx"
-      reloc_model: "model/clsreg.onnx"
-      reloc_topk: 30
+      reloc_enable: true        # ClsReg proposer, consumed by reloc_recovery
+
+      # {field} = 빌드한 필드 (robot_config.h) — model/small, model/large ...
+      mlp_model: "model/{field}/vision_imu.onnx"
+      reloc_model: "model/{field}/clsreg.onnx"
+      reloc_topk: 5             # candidates per frame; recall@5 is 76% even with one landmark
+      reloc_feature_min: 1      # separate from the MLP gate: ClsReg is trained on feature_min=1
 
     latency_compensation:
       enable: true              # rotate features with the IMU yaw at image capture time (needs vision_feature stamp)
@@ -47,8 +49,23 @@
       enable: true
       disagree_dist_m: 2.5      # must be >= MclTune::MAX_JUMP_M (2.44 on LARGE)
       cluster_radius_m: 0.5
-      min_frames: 15
+      min_frames: 10            # valid MLP frames in one cluster within window_sec (not consecutive)
+      window_sec: 6.0           # blind frames are skipped; samples older than this expire
       cooldown_sec: 5.0         # also applied after a rejection
       verify: true
       verify_ratio: 1.5         # candidate score >= current score x this
       verify_min_score: 0.3     # min candidate score (mean weight per observation)
+
+    # MCL cannot jump beyond MAX_JUMP_M. When the current pose stops explaining the last
+    # window_sec of observations, ClsReg candidates are carried forward with odometry and the
+    # best-scoring track replaces the pose. Validated with the robocup_learned_localization
+    # MCL bench (make mcl-bench): kidnap recovery 50% -> 96% in simulation.
+    reloc_recovery:
+      enable: true
+      window_sec: 3.0
+      lost_fit: 0.3             # current track fit below this = lost (sim: ok p10 0.91, lost p90 0.25)
+      min_observations: 4       # observations in the window before judging
+      verify_min_score: 0.3
+      verify_ratio: 1.5
+      min_jump_m: 1.0
+      cooldown_sec: 5.0

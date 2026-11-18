@@ -6,11 +6,11 @@ namespace MclTune
 {
 
 #if defined(FIELD_SMALL)
-  constexpr double OBS_FILTER_DIST_M           = 1.7;
+  constexpr double OBS_FILTER_DIST_M           = 5.0;
   constexpr double OBS_FILTER_X_FEATURE_DIST_M = 2.0;
   constexpr double L_DIST_GATE_M               = 0.5;
   constexpr double MIN_JUMP_M                  = 0.07;
-  constexpr double MAX_JUMP_M                  = 1.0;
+  constexpr double MAX_JUMP_M                  = 3.0;
   constexpr double MAX_SPREAD_M                = 0.5;
 
 #elif defined(FIELD_MIDDLE)

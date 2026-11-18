@@ -5,11 +5,18 @@
 #include <stdexcept>
 
 #include "ament_index_cpp/get_package_share_directory.hpp"
+#include "field_coordinate/field_coordinate.hpp"
 
-std::string QNode::resolveModelPath(const std::string &path) const
+std::string QNode::resolveModelPath(const std::string &raw_path) const
 {
-    if (path.empty())
-        return path;
+    if (raw_path.empty())
+        return raw_path;
+
+    // "{field}" 는 빌드한 필드 (robot_config.h) 의 모델 폴더 — small / middle / large.
+    std::string path = raw_path;
+    const std::string token = "{field}";
+    for (std::size_t pos = path.find(token); pos != std::string::npos; pos = path.find(token))
+        path.replace(pos, token.size(), FieldCoord::NAME);
 
     if (path[0] == '/')
         return path;
@@ -53,10 +60,20 @@ void QNode::getParams()
     node->declare_parameter("inference.mlp_model", "");
     node->declare_parameter("inference.reloc_model", "");
     node->declare_parameter("inference.reloc_topk", 30);
+    node->declare_parameter("inference.reloc_feature_min", 1);
+    node->declare_parameter("reloc_recovery.enable", false);
+    node->declare_parameter("reloc_recovery.window_sec", 3.0);
+    node->declare_parameter("reloc_recovery.lost_fit", 0.3);
+    node->declare_parameter("reloc_recovery.min_observations", 4);
+    node->declare_parameter("reloc_recovery.verify_min_score", 0.3);
+    node->declare_parameter("reloc_recovery.verify_ratio", 1.5);
+    node->declare_parameter("reloc_recovery.min_jump_m", 1.0);
+    node->declare_parameter("reloc_recovery.cooldown_sec", 5.0);
     node->declare_parameter("kidnap.enable", false);
     node->declare_parameter("kidnap.disagree_dist_m", 2.0);
     node->declare_parameter("kidnap.cluster_radius_m", 0.5);
-    node->declare_parameter("kidnap.min_frames", 5);
+    node->declare_parameter("kidnap.min_frames", 10);
+    node->declare_parameter("kidnap.window_sec", 6.0);
     node->declare_parameter("kidnap.cooldown_sec", 3.0);
     node->declare_parameter("kidnap.verify", true);
     node->declare_parameter("kidnap.verify_ratio", 1.5);
@@ -135,6 +152,8 @@ void QNode::getParams()
         resolveModelPath(node->get_parameter("inference.reloc_model").as_string());
     inference_config_.reloc_topk =
         node->get_parameter("inference.reloc_topk").as_int();
+    inference_config_.reloc_feature_min =
+        static_cast<int>(node->get_parameter("inference.reloc_feature_min").as_int());
 
     latency_compensation_ =
         node->get_parameter("latency_compensation.enable").as_bool();
@@ -161,6 +180,8 @@ void QNode::getParams()
         node->get_parameter("kidnap.cluster_radius_m").as_double();
     kidnap_config.min_frames =
         static_cast<int>(node->get_parameter("kidnap.min_frames").as_int());
+    kidnap_config.window_sec =
+        node->get_parameter("kidnap.window_sec").as_double();
     kidnap_config.cooldown_sec =
         node->get_parameter("kidnap.cooldown_sec").as_double();
     kidnap_config.verify =
@@ -197,6 +218,37 @@ void QNode::getParams()
                 "[kidnap] verify: score>=%.2f and >=x%.2f current",
                 kidnap_config.verify_min_score, kidnap_config.verify_ratio);
         }
+    }
+
+    robocup_localization::app::RelocRecoveryConfig reloc_config;
+    reloc_config.enable = node->get_parameter("reloc_recovery.enable").as_bool();
+    reloc_config.window_sec = node->get_parameter("reloc_recovery.window_sec").as_double();
+    reloc_config.lost_fit = node->get_parameter("reloc_recovery.lost_fit").as_double();
+    reloc_config.min_observations = static_cast<int>(
+        node->get_parameter("reloc_recovery.min_observations").as_int());
+    reloc_config.verify_min_score =
+        node->get_parameter("reloc_recovery.verify_min_score").as_double();
+    reloc_config.verify_ratio = node->get_parameter("reloc_recovery.verify_ratio").as_double();
+    reloc_config.min_jump_m = node->get_parameter("reloc_recovery.min_jump_m").as_double();
+    reloc_config.cooldown_sec = node->get_parameter("reloc_recovery.cooldown_sec").as_double();
+    // Without the ClsReg proposer there is nothing to relocalize to.
+    if (reloc_config.enable && !inference_config_.reloc_enable)
+    {
+        RCLCPP_WARN(
+            node->get_logger(),
+            "[reloc] reloc_recovery.enable 이지만 inference.reloc_enable=false — 끕니다");
+        reloc_config.enable = false;
+    }
+    reloc_recovery_.configure(reloc_config);
+    if (reloc_config.enable)
+    {
+        RCLCPP_INFO(
+            node->get_logger(),
+            "[reloc] on: lost if fit<%.2f over %.1fs, accept score>=%.2f and >=x%.2f, "
+            "feature_min=%d, top-%d",
+            reloc_config.lost_fit, reloc_config.window_sec, reloc_config.verify_min_score,
+            reloc_config.verify_ratio, inference_config_.reloc_feature_min,
+            inference_config_.reloc_topk);
     }
 
     // Must match robocup_task_planner state_pose.yaml (passed in by the launch file).

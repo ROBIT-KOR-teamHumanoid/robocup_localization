@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "field_coordinate/field_coordinate.hpp"
+
 namespace robocup_localization::inference
 {
 
@@ -46,12 +48,15 @@ inline int countValidSlots(const Observation& obs)
   return n;
 }
 
-// Must equal FieldCoord::A / B (static_assert in onnx_localizer.cpp).
-inline constexpr double MODEL_FIELD_A = 22.0;
-inline constexpr double MODEL_FIELD_B = 14.0;
+// 모델은 필드마다 따로 학습한다 (model/<FieldCoord::NAME>/). 모델이 학습된 필드는
+// .onnx.json 의 A/B 로 확인한다 (onnx_localizer.cpp init).
+inline constexpr double MODEL_FIELD_A = FieldCoord::A;
+inline constexpr double MODEL_FIELD_B = FieldCoord::B;
 
-inline constexpr int RELOC_GRID_NX = 44;
-inline constexpr int RELOC_GRID_NY = 28;
+// ClsReg 격자 — 학습(robocup_learned_localization CLSREG_CELL) 과 같은 셀 크기.
+inline constexpr double RELOC_CELL_M = 0.5;
+inline constexpr int RELOC_GRID_NX = static_cast<int>(MODEL_FIELD_A / RELOC_CELL_M + 0.5);
+inline constexpr int RELOC_GRID_NY = static_cast<int>(MODEL_FIELD_B / RELOC_CELL_M + 0.5);
 inline constexpr int RELOC_GRID_CELLS = RELOC_GRID_NX * RELOC_GRID_NY;
 
 // vx_mm = left+, vy_mm = forward+.
@@ -84,9 +89,15 @@ struct InferenceConfig
 
   // Read from the MLP model meta (feature_min_gate), never a parameter.
   int feature_min = 2;
+
+  // ClsReg gate; its training set is feature_min=1 (clsreg.onnx dataset).
+  int reloc_feature_min = 1;
 };
 
 bool readFeatureMinGate(const std::string& model_path, int& feature_min);
+
+// .onnx.json 에 적힌, 모델이 학습된 필드 크기 (m). 없으면 false.
+bool readModelField(const std::string& model_path, double& field_a, double& field_b);
 
 struct MlpResult
 {
